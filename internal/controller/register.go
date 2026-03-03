@@ -23,6 +23,7 @@ import (
 	"github.com/crossplane/provider-gf/internal/controller/config"
 	"github.com/crossplane/provider-gf/internal/controller/contactpoint"
 	"github.com/crossplane/provider-gf/internal/controller/dashboard"
+	"github.com/crossplane/provider-gf/internal/controller/dashboardpermission"
 	"github.com/crossplane/provider-gf/internal/controller/datasource"
 	"github.com/crossplane/provider-gf/internal/controller/folder"
 	"github.com/crossplane/provider-gf/internal/controller/librarypanel"
@@ -36,6 +37,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		config.Setup,
 		contactpoint.SetupGated,
 		dashboard.SetupGated,
+		dashboardpermission.SetupGated,
 		datasource.SetupGated,
 		folder.SetupGated,
 		librarypanel.SetupGated,

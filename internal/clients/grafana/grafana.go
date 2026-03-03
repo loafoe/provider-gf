@@ -1104,6 +1104,119 @@ func (c *Client) GetUserByLoginOrEmail(ctx context.Context, loginOrEmail string)
 	return &user, nil
 }
 
+// DashboardPermissionItem represents a single permission entry for a dashboard.
+type DashboardPermissionItem struct {
+	ID             int64  `json:"id,omitempty"`
+	DashboardID    int64  `json:"dashboardId,omitempty"`
+	UserID         int64  `json:"userId,omitempty"`
+	UserLogin      string `json:"userLogin,omitempty"`
+	UserEmail      string `json:"userEmail,omitempty"`
+	TeamID         int64  `json:"teamId,omitempty"`
+	Team           string `json:"team,omitempty"`
+	Role           string `json:"role,omitempty"`
+	Permission     int    `json:"permission"`
+	PermissionName string `json:"permissionName,omitempty"`
+	UID            string `json:"uid,omitempty"`
+	Title          string `json:"title,omitempty"`
+	Slug           string `json:"slug,omitempty"`
+	IsFolder       bool   `json:"isFolder,omitempty"`
+	URL            string `json:"url,omitempty"`
+	Created        string `json:"created,omitempty"`
+	Updated        string `json:"updated,omitempty"`
+}
+
+// DashboardPermissionRequest represents the request body for setting dashboard permissions.
+type DashboardPermissionRequest struct {
+	Items []DashboardPermissionRequestItem `json:"items"`
+}
+
+// DashboardPermissionRequestItem represents a single permission item in the request.
+type DashboardPermissionRequestItem struct {
+	Role       string `json:"role,omitempty"`
+	Permission int    `json:"permission"`
+	TeamID     int64  `json:"teamId,omitempty"`
+	UserID     int64  `json:"userId,omitempty"`
+}
+
+// PermissionNameToLevel converts a permission name to its numeric level.
+// View=1, Edit=2, Admin=4
+func PermissionNameToLevel(name string) int {
+	switch name {
+	case "View":
+		return 1
+	case "Edit":
+		return 2
+	case "Admin":
+		return 4
+	default:
+		return 0
+	}
+}
+
+// PermissionLevelToName converts a numeric permission level to its name.
+func PermissionLevelToName(level int) string {
+	switch level {
+	case 1:
+		return "View"
+	case 2:
+		return "Edit"
+	case 4:
+		return "Admin"
+	default:
+		return ""
+	}
+}
+
+// GetDashboardPermissions gets all permissions for a dashboard by its UID.
+func (c *Client) GetDashboardPermissions(ctx context.Context, dashboardUID string) ([]DashboardPermissionItem, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/dashboards/uid/"+dashboardUID+"/permissions", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dashboard permissions: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Dashboard doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get dashboard permissions: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var permissions []DashboardPermissionItem
+	if err := json.Unmarshal(body, &permissions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return permissions, nil
+}
+
+// SetDashboardPermissions sets all permissions for a dashboard by its UID.
+// This operation replaces all existing permissions.
+func (c *Client) SetDashboardPermissions(ctx context.Context, dashboardUID string, req DashboardPermissionRequest) error {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/dashboards/uid/"+dashboardUID+"/permissions", req)
+	if err != nil {
+		return fmt.Errorf("failed to set dashboard permissions: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to set dashboard permissions: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 func (c *Client) newRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {
