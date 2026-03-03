@@ -1,0 +1,52 @@
+# Basic organization example
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Organization
+metadata:
+  name: example-org
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    name: "Example Organization"
+
+---
+# Organization with users
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Organization
+metadata:
+  name: team-platform
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    name: "Platform Team"
+    admins:
+      - admin@example.com
+    editors:
+      - dev1@example.com
+      - dev2@example.com
+    viewers:
+      - viewer@example.com
+
+---
+# Organization with multiple admins
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Organization
+metadata:
+  name: team-security
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    name: "Security Team"
+    admins:
+      - security-lead@example.com
+      - security-admin@example.com
+    editors:
+      - analyst@example.com

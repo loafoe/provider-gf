@@ -1,0 +1,61 @@
+# Basic folder example
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: example-folder
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    title: "Example Folder"
+    uid: example-folder
+
+---
+# Folder with explicit UID
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: alerts-folder
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    title: "Alerts"
+    uid: alerts-folder
+
+---
+# Nested folder (requires nestedFolders feature flag in Grafana)
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: nested-folder
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    title: "Nested Subfolder"
+    uid: nested-subfolder
+    parentFolderUid: example-folder
+
+---
+# Nested folder using reference (requires nestedFolders feature flag in Grafana)
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: nested-folder-with-ref
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    title: "Nested Subfolder with Ref"
+    uid: nested-subfolder-ref
+    parentFolderRef:
+      name: example-folder

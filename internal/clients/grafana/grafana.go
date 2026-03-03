@@ -697,6 +697,413 @@ func (c *Client) DeleteContactPointByUID(ctx context.Context, uid string) error 
 }
 
 // newRequest creates a new HTTP request with authentication headers.
+// Folder represents a Grafana folder.
+type Folder struct {
+	ID            int64  `json:"id,omitempty"`
+	UID           string `json:"uid,omitempty"`
+	Title         string `json:"title"`
+	URL           string `json:"url,omitempty"`
+	Version       int64  `json:"version,omitempty"`
+	ParentUID     string `json:"parentUid,omitempty"`
+	OrgID         int64  `json:"orgId,omitempty"`
+	CanSave       bool   `json:"canSave,omitempty"`
+	CanEdit       bool   `json:"canEdit,omitempty"`
+	CanAdmin      bool   `json:"canAdmin,omitempty"`
+	CanDelete     bool   `json:"canDelete,omitempty"`
+	HasACL        bool   `json:"hasAcl,omitempty"`
+	Created       string `json:"created,omitempty"`
+	Updated       string `json:"updated,omitempty"`
+	CreatedBy     string `json:"createdBy,omitempty"`
+	UpdatedBy     string `json:"updatedBy,omitempty"`
+	FolderUID     string `json:"folderUid,omitempty"` // Nested folder parent
+	AccessControl any    `json:"accessControl,omitempty"`
+}
+
+// FolderCreateRequest represents a request to create a folder.
+type FolderCreateRequest struct {
+	UID       string `json:"uid,omitempty"`
+	Title     string `json:"title"`
+	ParentUID string `json:"parentUid,omitempty"`
+}
+
+// FolderUpdateRequest represents a request to update a folder.
+type FolderUpdateRequest struct {
+	Title     string `json:"title"`
+	Version   int64  `json:"version"`
+	ParentUID string `json:"parentUid,omitempty"`
+}
+
+// CreateFolder creates a new folder.
+func (c *Client) CreateFolder(ctx context.Context, req FolderCreateRequest) (*Folder, error) {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/folders", req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create folder: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed to create folder: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var folder Folder
+	if err := json.Unmarshal(body, &folder); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &folder, nil
+}
+
+// UpdateFolder updates an existing folder by UID.
+func (c *Client) UpdateFolder(ctx context.Context, uid string, req FolderUpdateRequest) (*Folder, error) {
+	resp, err := c.doRequest(ctx, http.MethodPut, "/api/folders/"+uid, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update folder: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to update folder: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var folder Folder
+	if err := json.Unmarshal(body, &folder); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &folder, nil
+}
+
+// GetFolderByUID gets a folder by its UID.
+func (c *Client) GetFolderByUID(ctx context.Context, uid string) (*Folder, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/folders/"+uid, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get folder: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Folder doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get folder: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var folder Folder
+	if err := json.Unmarshal(body, &folder); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &folder, nil
+}
+
+// DeleteFolderByUID deletes a folder by its UID.
+func (c *Client) DeleteFolderByUID(ctx context.Context, uid string) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, "/api/folders/"+uid, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete folder: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed to delete folder: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// Organization represents a Grafana organization.
+type Organization struct {
+	ID   int64  `json:"id,omitempty"`
+	Name string `json:"name"`
+}
+
+// OrganizationCreateRequest represents a request to create an organization.
+type OrganizationCreateRequest struct {
+	Name string `json:"name"`
+}
+
+// OrganizationCreateResponse represents the response from creating an organization.
+type OrganizationCreateResponse struct {
+	OrgID   int64  `json:"orgId"`
+	Message string `json:"message"`
+}
+
+// OrgUser represents a user in an organization.
+type OrgUser struct {
+	OrgID  int64  `json:"orgId,omitempty"`
+	UserID int64  `json:"userId,omitempty"`
+	Email  string `json:"email,omitempty"`
+	Login  string `json:"login,omitempty"`
+	Role   string `json:"role,omitempty"`
+}
+
+// OrgUserAddRequest represents a request to add a user to an organization.
+type OrgUserAddRequest struct {
+	LoginOrEmail string `json:"loginOrEmail"`
+	Role         string `json:"role"`
+}
+
+// CreateOrganization creates a new organization.
+func (c *Client) CreateOrganization(ctx context.Context, req OrganizationCreateRequest) (*OrganizationCreateResponse, error) {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/orgs", req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create organization: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed to create organization: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var orgResp OrganizationCreateResponse
+	if err := json.Unmarshal(body, &orgResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &orgResp, nil
+}
+
+// UpdateOrganization updates an existing organization by ID.
+func (c *Client) UpdateOrganization(ctx context.Context, orgID int64, req OrganizationCreateRequest) error {
+	resp, err := c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/api/orgs/%d", orgID), req)
+	if err != nil {
+		return fmt.Errorf("failed to update organization: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to update organization: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// GetOrganizationByID gets an organization by its ID.
+func (c *Client) GetOrganizationByID(ctx context.Context, orgID int64) (*Organization, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/api/orgs/%d", orgID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organization: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Organization doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get organization: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var org Organization
+	if err := json.Unmarshal(body, &org); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &org, nil
+}
+
+// GetOrganizationByName gets an organization by its name.
+func (c *Client) GetOrganizationByName(ctx context.Context, name string) (*Organization, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/orgs/name/"+name, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organization: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Organization doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get organization: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var org Organization
+	if err := json.Unmarshal(body, &org); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &org, nil
+}
+
+// DeleteOrganization deletes an organization by its ID.
+func (c *Client) DeleteOrganization(ctx context.Context, orgID int64) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/orgs/%d", orgID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete organization: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed to delete organization: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// GetOrgUsers gets all users in an organization.
+func (c *Client) GetOrgUsers(ctx context.Context, orgID int64) ([]OrgUser, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/api/orgs/%d/users", orgID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get organization users: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get organization users: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var users []OrgUser
+	if err := json.Unmarshal(body, &users); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return users, nil
+}
+
+// AddOrgUser adds a user to an organization.
+func (c *Client) AddOrgUser(ctx context.Context, orgID int64, req OrgUserAddRequest) error {
+	resp, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/api/orgs/%d/users", orgID), req)
+	if err != nil {
+		return fmt.Errorf("failed to add user to organization: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("failed to add user to organization: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// UpdateOrgUserRole updates a user's role in an organization.
+func (c *Client) UpdateOrgUserRole(ctx context.Context, orgID, userID int64, role string) error {
+	req := struct {
+		Role string `json:"role"`
+	}{Role: role}
+	resp, err := c.doRequest(ctx, http.MethodPatch, fmt.Sprintf("/api/orgs/%d/users/%d", orgID, userID), req)
+	if err != nil {
+		return fmt.Errorf("failed to update user role: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to update user role: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// RemoveOrgUser removes a user from an organization.
+func (c *Client) RemoveOrgUser(ctx context.Context, orgID, userID int64) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/orgs/%d/users/%d", orgID, userID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to remove user from organization: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed to remove user from organization: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// GetUserByLoginOrEmail gets a user by their login or email.
+func (c *Client) GetUserByLoginOrEmail(ctx context.Context, loginOrEmail string) (*OrgUser, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/users/lookup?loginOrEmail="+loginOrEmail, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // User doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get user: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var user OrgUser
+	if err := json.Unmarshal(body, &user); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &user, nil
+}
+
 func (c *Client) newRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {
