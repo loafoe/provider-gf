@@ -29,6 +29,7 @@ import (
 	"github.com/crossplane/provider-gf/internal/controller/folderpermission"
 	"github.com/crossplane/provider-gf/internal/controller/librarypanel"
 	"github.com/crossplane/provider-gf/internal/controller/organization"
+	"github.com/crossplane/provider-gf/internal/controller/rulegroup"
 )
 
 // SetupGated creates all Grafana controllers with safe-start support and adds them to
@@ -44,6 +45,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		folderpermission.SetupGated,
 		librarypanel.SetupGated,
 		organization.SetupGated,
+		rulegroup.SetupGated,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err

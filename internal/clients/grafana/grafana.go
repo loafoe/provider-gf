@@ -1332,3 +1332,146 @@ func (c *Client) newRequest(ctx context.Context, method, path string, body any) 
 
 	return req, nil
 }
+
+// =============================================================================
+// Rule Group API
+// =============================================================================
+
+// AlertRuleGroup represents a Grafana alert rule group.
+type AlertRuleGroup struct {
+	FolderUID string      `json:"folderUid,omitempty"`
+	Title     string      `json:"title"`
+	Interval  int64       `json:"interval"`
+	Rules     []AlertRule `json:"rules"`
+}
+
+// AlertRule represents a single alert rule within a rule group.
+type AlertRule struct {
+	UID                  string                 `json:"uid,omitempty"`
+	OrgID                int64                  `json:"orgID,omitempty"`
+	FolderUID            string                 `json:"folderUID,omitempty"`
+	RuleGroup            string                 `json:"ruleGroup,omitempty"`
+	Title                string                 `json:"title"`
+	Condition            string                 `json:"condition"`
+	Data                 []AlertQuery           `json:"data"`
+	For                  string                 `json:"for,omitempty"`
+	NoDataState          string                 `json:"noDataState,omitempty"`
+	ExecErrState         string                 `json:"execErrState,omitempty"`
+	Labels               map[string]string      `json:"labels,omitempty"`
+	Annotations          map[string]string      `json:"annotations,omitempty"`
+	IsPaused             bool                   `json:"isPaused,omitempty"`
+	NotificationSettings *AlertNotification     `json:"notification_settings,omitempty"`
+	Provenance           string                 `json:"provenance,omitempty"`
+}
+
+// AlertQuery represents a query within an alert rule.
+type AlertQuery struct {
+	RefID             string            `json:"refId"`
+	DatasourceUID     string            `json:"datasourceUid"`
+	QueryType         string            `json:"queryType,omitempty"`
+	RelativeTimeRange *AlertTimeRange   `json:"relativeTimeRange,omitempty"`
+	Model             map[string]any    `json:"model"`
+}
+
+// AlertTimeRange represents a relative time range for a query.
+type AlertTimeRange struct {
+	From int64 `json:"from"`
+	To   int64 `json:"to"`
+}
+
+// AlertNotification represents notification settings for an alert rule.
+type AlertNotification struct {
+	Receiver          string   `json:"receiver"`
+	GroupBy           []string `json:"group_by,omitempty"`
+	GroupWait         string   `json:"group_wait,omitempty"`
+	GroupInterval     string   `json:"group_interval,omitempty"`
+	RepeatInterval    string   `json:"repeat_interval,omitempty"`
+	MuteTimeIntervals []string `json:"mute_time_intervals,omitempty"`
+}
+
+// GetRuleGroup retrieves a rule group by folder UID and group name.
+func (c *Client) GetRuleGroup(ctx context.Context, folderUID, groupName string) (*AlertRuleGroup, error) {
+	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, groupName)
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rule group: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get rule group: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var rg AlertRuleGroup
+	if err := json.Unmarshal(body, &rg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &rg, nil
+}
+
+// CreateOrUpdateRuleGroup creates or updates a rule group.
+func (c *Client) CreateOrUpdateRuleGroup(ctx context.Context, folderUID string, rg AlertRuleGroup, disableProvenance bool) (*AlertRuleGroup, error) {
+	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, rg.Title)
+
+	httpReq, err := c.newRequest(ctx, http.MethodPut, path, rg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if disableProvenance {
+		httpReq.Header.Set("X-Disable-Provenance", "true")
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create/update rule group: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed to create/update rule group: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var result AlertRuleGroup
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// DeleteRuleGroup deletes a rule group.
+func (c *Client) DeleteRuleGroup(ctx context.Context, folderUID, groupName string) error {
+	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, groupName)
+	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete rule group: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed to delete rule group: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}

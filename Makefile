@@ -23,13 +23,15 @@ GO111MODULE = on
 GOLANGCILINT_VERSION = 2.9.0
 -include build/makelib/golang.mk
 
-# Override go.test.unit to fix Go 1.26 covdata issue
-# The build submodule uses a redundant -cover flag that triggers covdata lookup
-go.test.unit:
+# Fix Go 1.26 covdata issue - the build submodule uses a redundant -cover flag
+# We override test.run to use our fixed target instead of go.test.unit
+go.test.unit.fixed:
 	@$(INFO) go test unit-tests
 	@mkdir -p $(GO_TEST_OUTPUT)
 	@CGO_ENABLED=$(GO_CGO_ENABLED) $(GOHOST) test -v -covermode=$(GO_COVER_MODE) -coverprofile=$(GO_TEST_OUTPUT)/coverage.txt $(GO_TEST_FLAGS) $(GO_STATIC_FLAGS) $(GO_PACKAGES) 2>&1 | tee $(GO_TEST_OUTPUT)/unit-tests.log || $(FAIL)
 	@$(OK) go test unit-tests
+
+test.run: go.test.unit.fixed
 
 # ====================================================================================
 # Setup Kubernetes tools
