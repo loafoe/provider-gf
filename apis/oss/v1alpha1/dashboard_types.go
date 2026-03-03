@@ -43,7 +43,15 @@ type DashboardParameters struct {
 	// OrgID is the Organization ID. If not set, the Org ID defined in the
 	// provider config will be used.
 	// +optional
-	OrgID *string `json:"orgId,omitempty"`
+	OrgID *int64 `json:"orgId,omitempty"`
+
+	// OrgRef is a reference to an Organization to populate orgId.
+	// +optional
+	OrgRef *xpv1.Reference `json:"orgRef,omitempty"`
+
+	// OrgSelector selects an Organization to populate orgId.
+	// +optional
+	OrgSelector *xpv1.Selector `json:"orgSelector,omitempty"`
 
 	// Overwrite set to true if you want to overwrite existing dashboard with
 	// newer version, same dashboard title in folder or same dashboard uid.
@@ -70,7 +78,7 @@ type DashboardObservation struct {
 	Message *string `json:"message,omitempty"`
 
 	// OrgID is the Organization ID.
-	OrgID *string `json:"orgId,omitempty"`
+	OrgID *int64 `json:"orgId,omitempty"`
 
 	// Overwrite indicates whether existing dashboard was overwritten.
 	Overwrite *bool `json:"overwrite,omitempty"`

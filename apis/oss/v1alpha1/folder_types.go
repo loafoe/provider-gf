@@ -49,6 +49,19 @@ type FolderParameters struct {
 	// ParentFolderSelector selects a Folder to populate parentFolderUid.
 	// +optional
 	ParentFolderSelector *xpv1.Selector `json:"parentFolderSelector,omitempty"`
+
+	// OrgID is the Organization ID. If not set, the Org ID defined in the
+	// provider config will be used.
+	// +optional
+	OrgID *int64 `json:"orgId,omitempty"`
+
+	// OrgRef is a reference to an Organization to populate orgId.
+	// +optional
+	OrgRef *xpv1.Reference `json:"orgRef,omitempty"`
+
+	// OrgSelector selects an Organization to populate orgId.
+	// +optional
+	OrgSelector *xpv1.Selector `json:"orgSelector,omitempty"`
 }
 
 // FolderObservation are the observable fields of a Folder.
@@ -76,6 +89,10 @@ type FolderObservation struct {
 	// ParentFolderUID is the UID of the parent folder.
 	// +optional
 	ParentFolderUID *string `json:"parentFolderUid,omitempty"`
+
+	// OrgID is the Organization ID.
+	// +optional
+	OrgID *int64 `json:"orgId,omitempty"`
 }
 
 // FolderSpec defines the desired state of a Folder.

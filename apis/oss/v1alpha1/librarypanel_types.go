@@ -45,6 +45,19 @@ type LibraryPanelParameters struct {
 	// Use "general" for the General folder.
 	// +optional
 	FolderUID *string `json:"folderUid,omitempty"`
+
+	// OrgID is the Organization ID. If not set, the Org ID defined in the
+	// provider config will be used.
+	// +optional
+	OrgID *int64 `json:"orgId,omitempty"`
+
+	// OrgRef is a reference to an Organization to populate orgId.
+	// +optional
+	OrgRef *xpv1.Reference `json:"orgRef,omitempty"`
+
+	// OrgSelector selects an Organization to populate orgId.
+	// +optional
+	OrgSelector *xpv1.Selector `json:"orgSelector,omitempty"`
 }
 
 // LibraryPanelObservation are the observable fields of a LibraryPanel.
@@ -92,6 +105,10 @@ type LibraryPanelObservation struct {
 	// ConnectedDashboards is the number of dashboards using this library panel.
 	// +optional
 	ConnectedDashboards *int64 `json:"connectedDashboards,omitempty"`
+
+	// OrgID is the Organization ID.
+	// +optional
+	OrgID *int64 `json:"orgId,omitempty"`
 }
 
 // LibraryPanelSpec defines the desired state of a LibraryPanel.

@@ -59,3 +59,36 @@ spec:
     uid: nested-subfolder-ref
     parentFolderRef:
       name: example-folder
+
+---
+# Folder in a specific organization (using orgId directly)
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: folder-with-org-id
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    title: "Folder in Org 2"
+    uid: folder-in-org-2
+    orgId: 2
+
+---
+# Folder in a specific organization (using orgRef)
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: folder-with-org-ref
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    title: "Folder with Org Ref"
+    uid: folder-with-org-ref
+    orgRef:
+      name: team-platform

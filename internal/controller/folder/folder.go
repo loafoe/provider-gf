@@ -38,6 +38,7 @@ import (
 	"github.com/crossplane/provider-gf/apis/oss/v1alpha1"
 	apisv1alpha1 "github.com/crossplane/provider-gf/apis/v1alpha1"
 	"github.com/crossplane/provider-gf/internal/clients/grafana"
+	"github.com/crossplane/provider-gf/internal/controller/common"
 )
 
 const (
@@ -46,6 +47,7 @@ const (
 	errGetPC               = "cannot get ProviderConfig"
 	errNewClient           = "cannot create Grafana client"
 	errInvalidExternalName = "invalid external name format, expected <orgId>:<uid>"
+	errResolveOrgRef       = "cannot resolve organization reference"
 )
 
 func formatExternalName(orgID int64, uid string) string {
@@ -175,9 +177,14 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errNewClient)
 	}
 
-	orgID := int64(1)
-	if pcSpec.OrgID != nil {
-		orgID = *pcSpec.OrgID
+	// Resolve orgID from OrgRef/OrgSelector, direct OrgID, or ProviderConfig
+	orgID, err := common.ResolveOrgID(ctx, c.kube, cr,
+		cr.Spec.ForProvider.OrgRef,
+		cr.Spec.ForProvider.OrgSelector,
+		cr.Spec.ForProvider.OrgID,
+		pcSpec.OrgID)
+	if err != nil {
+		return nil, errors.Wrap(err, errResolveOrgRef)
 	}
 
 	return &external{client: gfClient, orgID: orgID}, nil
@@ -244,6 +251,7 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	cr.Status.AtProvider.Title = &folder.Title
 	cr.Status.AtProvider.URL = &folder.URL
 	cr.Status.AtProvider.Version = &folder.Version
+	cr.Status.AtProvider.OrgID = &e.orgID
 	if folder.ParentUID != "" {
 		cr.Status.AtProvider.ParentFolderUID = &folder.ParentUID
 	}

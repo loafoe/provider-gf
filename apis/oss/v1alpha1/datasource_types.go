@@ -88,6 +88,19 @@ type DataSourceParameters struct {
 	// The secret should contain key-value pairs where keys are header names.
 	// +optional
 	HTTPHeadersSecretRef *xpv1.SecretKeySelector `json:"httpHeadersSecretRef,omitempty"`
+
+	// OrgID is the Organization ID. If not set, the Org ID defined in the
+	// provider config will be used.
+	// +optional
+	OrgID *int64 `json:"orgId,omitempty"`
+
+	// OrgRef is a reference to an Organization to populate orgId.
+	// +optional
+	OrgRef *xpv1.Reference `json:"orgRef,omitempty"`
+
+	// OrgSelector selects an Organization to populate orgId.
+	// +optional
+	OrgSelector *xpv1.Selector `json:"orgSelector,omitempty"`
 }
 
 // DataSourceObservation are the observable fields of a DataSource.
@@ -118,6 +131,9 @@ type DataSourceObservation struct {
 
 	// ReadOnly indicates if the data source is read-only.
 	ReadOnly *bool `json:"readOnly,omitempty"`
+
+	// OrgID is the Organization ID.
+	OrgID *int64 `json:"orgId,omitempty"`
 }
 
 // DataSourceSpec defines the desired state of a DataSource.
