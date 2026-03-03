@@ -1,0 +1,94 @@
+# Example DataSource resource - Prometheus/Mimir
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DataSource
+metadata:
+  name: example-prometheus
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    name: "Prometheus (Crossplane)"
+    type: prometheus
+    url: "http://prometheus-server.monitoring.svc.cluster.local"
+    accessMode: proxy
+    isDefault: false
+    jsonDataEncoded: |
+      {
+        "httpMethod": "POST",
+        "timeInterval": "15s"
+      }
+
+# Example DataSource resource - Mimir
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DataSource
+metadata:
+  name: example-mimir
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    name: "Mimir (Crossplane)"
+    type: prometheus
+    uid: crossplane-mimir
+    url: "http://mimir-gateway.mimir-system.svc.cluster.local/prometheus"
+    accessMode: proxy
+    isDefault: false
+    jsonDataEncoded: |
+      {
+        "httpMethod": "POST",
+        "prometheusType": "Mimir",
+        "prometheusVersion": "2.10.1"
+      }
+
+# Example DataSource resource - Loki
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DataSource
+metadata:
+  name: example-loki
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-token-auth
+  forProvider:
+    name: "Loki (Crossplane)"
+    type: loki
+    url: "http://loki-gateway.loki-system.svc.cluster.local"
+    accessMode: proxy
+    isDefault: false
+    jsonDataEncoded: |
+      {
+        "maxLines": 1000,
+        "timeout": "60s"
+      }
+
+# Example DataSource with basic auth to the datasource itself
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DataSource
+metadata:
+  name: example-prometheus-with-auth
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    name: "Prometheus with Auth (Crossplane)"
+    type: prometheus
+    url: "https://prometheus.example.com"
+    accessMode: proxy
+    isDefault: false
+    basicAuthEnabled: true
+    basicAuthUsername: "prometheus-user"
+    jsonDataEncoded: |
+      {
+        "httpMethod": "POST"
+      }
+    secureJSONDataEncodedSecretRef:
+      name: prometheus-credentials
+      namespace: default
+      key: secureJsonData

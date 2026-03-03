@@ -379,3 +379,149 @@ func (c *Client) DeleteDataSourceByUID(ctx context.Context, uid string) error {
 
 	return nil
 }
+
+// LibraryPanel represents a Grafana library panel (library element).
+type LibraryPanel struct {
+	ID       int64             `json:"id,omitempty"`
+	OrgID    int64             `json:"orgId,omitempty"`
+	FolderID int64             `json:"folderId,omitempty"`
+	UID      string            `json:"uid,omitempty"`
+	Name     string            `json:"name"`
+	Kind     int               `json:"kind"` // 1 = panel, 2 = variable
+	Type     string            `json:"type,omitempty"`
+	Model    json.RawMessage   `json:"model,omitempty"`
+	Version  int64             `json:"version,omitempty"`
+	Meta     *LibraryPanelMeta `json:"meta,omitempty"`
+}
+
+// LibraryPanelMeta contains metadata about a library panel.
+type LibraryPanelMeta struct {
+	FolderName          string `json:"folderName,omitempty"`
+	FolderUID           string `json:"folderUid,omitempty"`
+	ConnectedDashboards int64  `json:"connectedDashboards,omitempty"`
+	Created             string `json:"created,omitempty"`
+	Updated             string `json:"updated,omitempty"`
+}
+
+// LibraryPanelCreateRequest represents a request to create a library panel.
+type LibraryPanelCreateRequest struct {
+	UID       string          `json:"uid,omitempty"`
+	FolderUID string          `json:"folderUid,omitempty"`
+	Name      string          `json:"name"`
+	Model     json.RawMessage `json:"model"`
+	Kind      int             `json:"kind"` // 1 = panel
+}
+
+// LibraryPanelUpdateRequest represents a request to update a library panel.
+type LibraryPanelUpdateRequest struct {
+	UID       string          `json:"uid,omitempty"`
+	FolderUID string          `json:"folderUid,omitempty"`
+	Name      string          `json:"name"`
+	Model     json.RawMessage `json:"model"`
+	Kind      int             `json:"kind"`
+	Version   int64           `json:"version"`
+}
+
+// LibraryPanelResponse represents the response from library panel API.
+type LibraryPanelResponse struct {
+	Result *LibraryPanel `json:"result,omitempty"`
+}
+
+// CreateLibraryPanel creates a new library panel.
+func (c *Client) CreateLibraryPanel(ctx context.Context, req LibraryPanelCreateRequest) (*LibraryPanel, error) {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/library-elements", req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create library panel: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed to create library panel: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var lpResp LibraryPanelResponse
+	if err := json.Unmarshal(body, &lpResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return lpResp.Result, nil
+}
+
+// UpdateLibraryPanel updates an existing library panel by UID.
+func (c *Client) UpdateLibraryPanel(ctx context.Context, uid string, req LibraryPanelUpdateRequest) (*LibraryPanel, error) {
+	resp, err := c.doRequest(ctx, http.MethodPatch, "/api/library-elements/"+uid, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update library panel: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to update library panel: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var lpResp LibraryPanelResponse
+	if err := json.Unmarshal(body, &lpResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return lpResp.Result, nil
+}
+
+// GetLibraryPanelByUID gets a library panel by its UID.
+func (c *Client) GetLibraryPanelByUID(ctx context.Context, uid string) (*LibraryPanel, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/library-elements/"+uid, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get library panel: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Library panel doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get library panel: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var lpResp LibraryPanelResponse
+	if err := json.Unmarshal(body, &lpResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return lpResp.Result, nil
+}
+
+// DeleteLibraryPanelByUID deletes a library panel by its UID.
+func (c *Client) DeleteLibraryPanelByUID(ctx context.Context, uid string) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, "/api/library-elements/"+uid, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete library panel: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed to delete library panel: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}

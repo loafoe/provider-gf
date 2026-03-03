@@ -23,6 +23,7 @@ import (
 	"github.com/crossplane/provider-gf/internal/controller/config"
 	"github.com/crossplane/provider-gf/internal/controller/dashboard"
 	"github.com/crossplane/provider-gf/internal/controller/datasource"
+	"github.com/crossplane/provider-gf/internal/controller/librarypanel"
 )
 
 // SetupGated creates all Grafana controllers with safe-start support and adds them to
@@ -32,6 +33,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		config.Setup,
 		dashboard.SetupGated,
 		datasource.SetupGated,
+		librarypanel.SetupGated,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err
