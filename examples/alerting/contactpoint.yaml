@@ -1,0 +1,114 @@
+# Example ContactPoint - Email
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-email
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "Team Email Alerts"
+    email:
+      addresses:
+        - "team@example.com"
+        - "oncall@example.com"
+      subject: "{{ .Status | toUpper }}: {{ .CommonLabels.alertname }}"
+      singleEmail: true
+      disableResolveMessage: false
+
+# Example ContactPoint - Slack (using webhook URL)
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-slack
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "Slack Alerts"
+    slack:
+      urlSecretRef:
+        name: slack-webhook
+        namespace: default
+        key: url
+      recipient: "#alerts"
+      title: "{{ .CommonLabels.alertname }}"
+      text: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+      username: "Grafana Alert"
+      disableResolveMessage: false
+
+# Example ContactPoint - PagerDuty
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-pagerduty
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "PagerDuty Critical"
+    pagerduty:
+      integrationKeySecretRef:
+        name: pagerduty-credentials
+        namespace: default
+        key: integrationKey
+      severity: critical
+      summary: "{{ .CommonLabels.alertname }}"
+      disableResolveMessage: false
+
+# Example ContactPoint - Webhook
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-webhook
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "Custom Webhook"
+    webhook:
+      urlSecretRef:
+        name: webhook-credentials
+        namespace: default
+        key: url
+      httpMethod: POST
+      basicAuthUser: webhook-user
+      basicAuthPasswordSecretRef:
+        name: webhook-credentials
+        namespace: default
+        key: password
+      disableResolveMessage: false
+
+# Example ContactPoint - Microsoft Teams
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-teams
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "Teams Channel"
+    teams:
+      urlSecretRef:
+        name: teams-webhook
+        namespace: default
+        key: url
+      title: "Grafana Alert"
+      message: "{{ range .Alerts }}{{ .Annotations.summary }}\n{{ end }}"
+      disableResolveMessage: false

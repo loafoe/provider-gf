@@ -1,0 +1,823 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: contactpoints.alerting.gf.m.crossplane.io
+spec:
+  group: alerting.gf.m.crossplane.io
+  names:
+    categories:
+    - crossplane
+    - managed
+    - gf
+    kind: ContactPoint
+    listKind: ContactPointList
+    plural: contactpoints
+    singular: contactpoint
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Synced')].status
+      name: SYNCED
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: READY
+      type: string
+    - jsonPath: .metadata.annotations.crossplane\.io/external-name
+      name: EXTERNAL-NAME
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: ContactPoint is the Schema for the ContactPoint API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ContactPointSpec defines the desired state of a ContactPoint.
+            properties:
+              forProvider:
+                description: ContactPointParameters are the configurable fields of
+                  a ContactPoint.
+                properties:
+                  alertmanager:
+                    description: Alertmanager configures an Alertmanager contact point.
+                    properties:
+                      basicAuthPasswordSecretRef:
+                        description: BasicAuthPasswordSecretRef is the password for
+                          basic authentication.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      basicAuthUser:
+                        description: BasicAuthUser is the username for basic authentication.
+                        type: string
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      url:
+                        description: URL is the Alertmanager webhook URL.
+                        type: string
+                    required:
+                    - url
+                    type: object
+                  disableProvenance:
+                    default: true
+                    description: DisableProvenance allows modifying the contact point
+                      from the Grafana UI.
+                    type: boolean
+                  discord:
+                    description: Discord configures a Discord contact point.
+                    properties:
+                      avatarUrl:
+                        description: AvatarURL is the URL of the avatar image.
+                        type: string
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      message:
+                        description: Message is the message content.
+                        type: string
+                      title:
+                        description: Title is the message title.
+                        type: string
+                      urlSecretRef:
+                        description: URLSecretRef is the Discord webhook URL.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      useDiscordUsername:
+                        description: UseDiscordUsername uses the Discord username.
+                        type: boolean
+                    required:
+                    - urlSecretRef
+                    type: object
+                  email:
+                    description: Email configures an Email contact point.
+                    properties:
+                      addresses:
+                        description: Addresses is the list of email addresses.
+                        items:
+                          type: string
+                        minItems: 1
+                        type: array
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      message:
+                        description: Message is the email body.
+                        type: string
+                      singleEmail:
+                        description: SingleEmail sends a single email to all addresses.
+                        type: boolean
+                      subject:
+                        description: Subject is the email subject.
+                        type: string
+                    required:
+                    - addresses
+                    type: object
+                  jira:
+                    description: Jira configures a Jira contact point.
+                    properties:
+                      apiTokenSecretRef:
+                        description: APITokenSecretRef is the Jira API token.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      apiUrl:
+                        description: APIURL is the Jira API URL.
+                        type: string
+                      description:
+                        description: Description is the issue description template.
+                        type: string
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      issueType:
+                        description: IssueType is the Jira issue type (e.g., "Bug").
+                        type: string
+                      labels:
+                        description: Labels is a list of labels to add to the issue.
+                        items:
+                          type: string
+                        type: array
+                      passwordSecretRef:
+                        description: PasswordSecretRef is the Jira password.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      priority:
+                        description: Priority is the issue priority.
+                        type: string
+                      project:
+                        description: Project is the Jira project key.
+                        type: string
+                      summary:
+                        description: Summary is the issue summary template.
+                        type: string
+                      userSecretRef:
+                        description: UserSecretRef is the Jira username.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                    required:
+                    - apiUrl
+                    - issueType
+                    - project
+                    type: object
+                  kafka:
+                    description: Kafka configures a Kafka contact point.
+                    properties:
+                      apiVersion:
+                        description: APIVersion is the Kafka API version.
+                        type: string
+                      clusterId:
+                        description: ClusterID is the Kafka cluster ID.
+                        type: string
+                      description:
+                        description: Description is the event description field.
+                        type: string
+                      details:
+                        description: Details is the event details field.
+                        type: string
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      passwordSecretRef:
+                        description: PasswordSecretRef is the authentication password.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      restProxyUrlSecretRef:
+                        description: RESTProxyURLSecretRef is the Kafka REST proxy
+                          URL.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      topic:
+                        description: Topic is the Kafka topic.
+                        type: string
+                      username:
+                        description: Username is the authentication username.
+                        type: string
+                    required:
+                    - restProxyUrlSecretRef
+                    - topic
+                    type: object
+                  name:
+                    description: Name is the name of the contact point.
+                    type: string
+                  pagerduty:
+                    description: PagerDuty configures a PagerDuty contact point.
+                    properties:
+                      class:
+                        description: Class is the event classification.
+                        type: string
+                      client:
+                        description: Client is the client name.
+                        type: string
+                      clientUrl:
+                        description: ClientURL is the client URL.
+                        type: string
+                      component:
+                        description: Component is the component name.
+                        type: string
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      group:
+                        description: Group is the incident group.
+                        type: string
+                      integrationKeySecretRef:
+                        description: IntegrationKeySecretRef is the PagerDuty integration
+                          key.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      severity:
+                        description: Severity is the alert severity (critical, error,
+                          warning, info).
+                        type: string
+                      source:
+                        description: Source is the alert source.
+                        type: string
+                      summary:
+                        description: Summary is the event summary template.
+                        type: string
+                      url:
+                        description: URL is the incident URL.
+                        type: string
+                    required:
+                    - integrationKeySecretRef
+                    type: object
+                  slack:
+                    description: Slack configures a Slack contact point.
+                    properties:
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      endpointUrl:
+                        description: EndpointURL is a custom Slack endpoint URL.
+                        type: string
+                      iconEmoji:
+                        description: IconEmoji is the bot emoji avatar.
+                        type: string
+                      iconUrl:
+                        description: IconURL is the bot avatar URL.
+                        type: string
+                      mentionChannel:
+                        description: MentionChannel is the channel mention format
+                          (here, channel).
+                        type: string
+                      mentionGroups:
+                        description: MentionGroups is a comma-separated list of group
+                          IDs to mention.
+                        type: string
+                      mentionUsers:
+                        description: MentionUsers is a comma-separated list of user
+                          IDs to mention.
+                        type: string
+                      recipient:
+                        description: Recipient is the Slack channel or user.
+                        type: string
+                      text:
+                        description: Text is the message text.
+                        type: string
+                      title:
+                        description: Title is the message title.
+                        type: string
+                      tokenSecretRef:
+                        description: TokenSecretRef is the Slack API token. Either
+                          this or URLSecretRef must be set.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      urlSecretRef:
+                        description: URLSecretRef is the Slack webhook URL. Either
+                          this or TokenSecretRef must be set.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      username:
+                        description: Username is the bot username.
+                        type: string
+                    type: object
+                  sns:
+                    description: SNS configures an AWS SNS contact point.
+                    properties:
+                      accessKeySecretRef:
+                        description: AccessKeySecretRef is the AWS access key.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      assumeRoleArn:
+                        description: AssumeRoleARN is the IAM role ARN to assume.
+                        type: string
+                      authProvider:
+                        description: AuthProvider is the authentication method ("arn"
+                          or "keys").
+                        type: string
+                      body:
+                        description: Body is the message body template.
+                        type: string
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      externalId:
+                        description: ExternalID is the external ID for role assumption.
+                        type: string
+                      messageFormat:
+                        description: MessageFormat is the alert message format.
+                        type: string
+                      secretKeySecretRef:
+                        description: SecretKeySecretRef is the AWS secret key.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      subject:
+                        description: Subject is the message subject.
+                        type: string
+                      topic:
+                        description: Topic is the SNS topic ARN.
+                        type: string
+                    required:
+                    - topic
+                    type: object
+                  teams:
+                    description: Teams configures a Microsoft Teams contact point.
+                    properties:
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      message:
+                        description: Message is the message content.
+                        type: string
+                      sectionTitle:
+                        description: SectionTitle is the message section title.
+                        type: string
+                      title:
+                        description: Title is the message title.
+                        type: string
+                      urlSecretRef:
+                        description: URLSecretRef is the Teams webhook URL.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                    required:
+                    - urlSecretRef
+                    type: object
+                  telegram:
+                    description: Telegram configures a Telegram contact point.
+                    properties:
+                      chatId:
+                        description: ChatID is the Telegram chat ID.
+                        type: string
+                      disableNotifications:
+                        description: DisableNotifications silences notifications.
+                        type: boolean
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      disableWebPagePreview:
+                        description: DisableWebPagePreview disables link previews.
+                        type: boolean
+                      message:
+                        description: Message is the message template.
+                        type: string
+                      messageThreadId:
+                        description: MessageThreadID is the thread ID for grouped
+                          messages.
+                        type: string
+                      parseMode:
+                        description: ParseMode is the message parse mode (HTML, Markdown,
+                          MarkdownV2).
+                        type: string
+                      protectContent:
+                        description: ProtectContent prevents message forwarding.
+                        type: boolean
+                      tokenSecretRef:
+                        description: TokenSecretRef is the Telegram bot token.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                    required:
+                    - chatId
+                    - tokenSecretRef
+                    type: object
+                  webhook:
+                    description: Webhook configures a Webhook contact point.
+                    properties:
+                      authorizationCredentialsSecretRef:
+                        description: AuthorizationCredentialsSecretRef is the authorization
+                          credentials.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      authorizationScheme:
+                        description: AuthorizationScheme is the authorization header
+                          scheme.
+                        type: string
+                      basicAuthPasswordSecretRef:
+                        description: BasicAuthPasswordSecretRef is the password for
+                          basic authentication.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                      basicAuthUser:
+                        description: BasicAuthUser is the username for basic authentication.
+                        type: string
+                      disableResolveMessage:
+                        description: DisableResolveMessage disables sending resolve
+                          messages.
+                        type: boolean
+                      httpMethod:
+                        description: HTTPMethod is the HTTP method to use.
+                        enum:
+                        - POST
+                        - PUT
+                        type: string
+                      maxAlerts:
+                        description: MaxAlerts is the maximum number of alerts to
+                          send.
+                        type: integer
+                      message:
+                        description: Message is the message body.
+                        type: string
+                      title:
+                        description: Title is the message title.
+                        type: string
+                      urlSecretRef:
+                        description: URLSecretRef is the webhook URL.
+                        properties:
+                          key:
+                            description: The key to select.
+                            type: string
+                          name:
+                            description: Name of the secret.
+                            type: string
+                          namespace:
+                            description: Namespace of the secret.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        - namespace
+                        type: object
+                    required:
+                    - urlSecretRef
+                    type: object
+                required:
+                - name
+                type: object
+              managementPolicies:
+                default:
+                - '*'
+                description: |-
+                  THIS IS A BETA FIELD. It is on by default but can be opted out
+                  through a Crossplane feature flag.
+                  ManagementPolicies specify the array of actions Crossplane is allowed to
+                  take on the managed and external resources.
+                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                  and this one: https://github.com/crossplane/crossplane/blob/444267e84783136daa93568b364a5f01228cacbe/design/one-pager-ignore-changes.md
+                items:
+                  description: |-
+                    A ManagementAction represents an action that the Crossplane controllers
+                    can take on an external resource.
+                  enum:
+                  - Observe
+                  - Create
+                  - Update
+                  - Delete
+                  - LateInitialize
+                  - '*'
+                  type: string
+                type: array
+              providerConfigRef:
+                default:
+                  kind: ClusterProviderConfig
+                  name: default
+                description: |-
+                  ProviderConfigReference specifies how the provider that will be used to
+                  create, observe, update, and delete this managed resource should be
+                  configured.
+                properties:
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+              writeConnectionSecretToRef:
+                description: |-
+                  WriteConnectionSecretToReference specifies the namespace and name of a
+                  Secret to which any connection details for this managed resource should
+                  be written. Connection details frequently include the endpoint, username,
+                  and password required to connect to the managed resource.
+                properties:
+                  name:
+                    description: Name of the secret.
+                    type: string
+                required:
+                - name
+                type: object
+            required:
+            - forProvider
+            type: object
+          status:
+            description: ContactPointStatus represents the observed state of a ContactPoint.
+            properties:
+              atProvider:
+                description: ContactPointObservation are the observable fields of
+                  a ContactPoint.
+                properties:
+                  uid:
+                    description: UID is the unique identifier of the contact point.
+                    type: string
+                type: object
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        LastTransitionTime is the last time this condition transitioned from one
+                        status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A Message containing details about this condition's last transition from
+                        one status to another, if any.
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        ObservedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      type: integer
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: |-
+                        Type of this condition. At most one of each condition type may apply to
+                        a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the latest metadata.generation
+                  which resulted in either a ready state, or stalled due to error
+                  it can not recover from without human intervention.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

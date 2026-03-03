@@ -525,3 +525,211 @@ func (c *Client) DeleteLibraryPanelByUID(ctx context.Context, uid string) error 
 
 	return nil
 }
+
+// ContactPoint represents a Grafana contact point.
+type ContactPoint struct {
+	UID                   string         `json:"uid,omitempty"`
+	Name                  string         `json:"name"`
+	Type                  string         `json:"type"`
+	Settings              map[string]any `json:"settings"`
+	DisableResolveMessage bool           `json:"disableResolveMessage,omitempty"`
+	Provenance            string         `json:"provenance,omitempty"`
+}
+
+// ContactPointCreateRequest represents a request to create a contact point.
+type ContactPointCreateRequest struct {
+	UID                   string         `json:"uid,omitempty"`
+	Name                  string         `json:"name"`
+	Type                  string         `json:"type"`
+	Settings              map[string]any `json:"settings"`
+	DisableResolveMessage bool           `json:"disableResolveMessage,omitempty"`
+}
+
+// CreateContactPoint creates a new contact point.
+func (c *Client) CreateContactPoint(ctx context.Context, req ContactPointCreateRequest, disableProvenance bool) (*ContactPoint, error) {
+	httpReq, err := c.newRequest(ctx, http.MethodPost, "/api/v1/provisioning/contact-points", req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if disableProvenance {
+		httpReq.Header.Set("X-Disable-Provenance", "true")
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create contact point: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed to create contact point: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var cp ContactPoint
+	if err := json.Unmarshal(body, &cp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &cp, nil
+}
+
+// UpdateContactPoint updates an existing contact point by UID.
+func (c *Client) UpdateContactPoint(ctx context.Context, uid string, req ContactPointCreateRequest, disableProvenance bool) (*ContactPoint, error) {
+	httpReq, err := c.newRequest(ctx, http.MethodPut, "/api/v1/provisioning/contact-points/"+uid, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if disableProvenance {
+		httpReq.Header.Set("X-Disable-Provenance", "true")
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update contact point: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to update contact point: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var cp ContactPoint
+	if err := json.Unmarshal(body, &cp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &cp, nil
+}
+
+// GetContactPointByUID gets a contact point by its UID.
+func (c *Client) GetContactPointByUID(ctx context.Context, uid string) (*ContactPoint, error) {
+	// Grafana API doesn't have a direct get by UID endpoint, so we list and filter
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/provisioning/contact-points", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact points: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get contact points: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var contactPoints []ContactPoint
+	if err := json.Unmarshal(body, &contactPoints); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	for i := range contactPoints {
+		if contactPoints[i].UID == uid {
+			return &contactPoints[i], nil
+		}
+	}
+
+	return nil, nil // Not found
+}
+
+// GetContactPointByName gets a contact point by its name.
+func (c *Client) GetContactPointByName(ctx context.Context, name string) (*ContactPoint, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/provisioning/contact-points", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact points: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get contact points: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var contactPoints []ContactPoint
+	if err := json.Unmarshal(body, &contactPoints); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	for i := range contactPoints {
+		if contactPoints[i].Name == name {
+			return &contactPoints[i], nil
+		}
+	}
+
+	return nil, nil // Not found
+}
+
+// DeleteContactPointByUID deletes a contact point by its UID.
+func (c *Client) DeleteContactPointByUID(ctx context.Context, uid string) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, "/api/v1/provisioning/contact-points/"+uid, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete contact point: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed to delete contact point: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// newRequest creates a new HTTP request with authentication headers.
+func (c *Client) newRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {
+	var reqBody io.Reader
+	if body != nil {
+		jsonBody, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
+		}
+		reqBody = bytes.NewReader(jsonBody)
+	}
+
+	url := c.baseURL + path
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	// Set authentication header
+	if strings.HasPrefix(c.authHeader, "basic:") {
+		parts := strings.SplitN(c.authHeader, ":", 3)
+		if len(parts) == 3 {
+			req.SetBasicAuth(parts[1], parts[2])
+		}
+	} else if c.authHeader != "" {
+		req.Header.Set("Authorization", c.authHeader)
+	}
+
+	// Set org ID header if specified
+	if c.orgID != nil {
+		req.Header.Set("X-Grafana-Org-Id", fmt.Sprintf("%d", *c.orgID))
+	}
+
+	return req, nil
+}

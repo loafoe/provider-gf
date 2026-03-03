@@ -20,6 +20,7 @@ package apis
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
+	alertingv1alpha1 "github.com/crossplane/provider-gf/apis/alerting/v1alpha1"
 	ossv1alpha1 "github.com/crossplane/provider-gf/apis/oss/v1alpha1"
 	gfv1alpha1 "github.com/crossplane/provider-gf/apis/v1alpha1"
 )
@@ -29,6 +30,7 @@ func init() {
 	AddToSchemes = append(AddToSchemes,
 		gfv1alpha1.SchemeBuilder.AddToScheme,
 		ossv1alpha1.SchemeBuilder.AddToScheme,
+		alertingv1alpha1.SchemeBuilder.AddToScheme,
 	)
 }
 

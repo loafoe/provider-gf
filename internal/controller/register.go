@@ -21,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/crossplane/provider-gf/internal/controller/config"
+	"github.com/crossplane/provider-gf/internal/controller/contactpoint"
 	"github.com/crossplane/provider-gf/internal/controller/dashboard"
 	"github.com/crossplane/provider-gf/internal/controller/datasource"
 	"github.com/crossplane/provider-gf/internal/controller/librarypanel"
@@ -31,6 +32,7 @@ import (
 func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
 		config.Setup,
+		contactpoint.SetupGated,
 		dashboard.SetupGated,
 		datasource.SetupGated,
 		librarypanel.SetupGated,
