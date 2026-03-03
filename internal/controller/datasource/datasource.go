@@ -230,7 +230,7 @@ type external struct {
 	kube   client.Client
 }
 
-func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) {
+func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) { //nolint:gocyclo // acceptable complexity for observe logic
 	cr, ok := mg.(*v1alpha1.DataSource)
 	if !ok {
 		return managed.ExternalObservation{}, errors.New(errNotDataSource)
@@ -238,16 +238,27 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	// Get the external name (format: <orgId>:<uid>)
 	externalName := meta.GetExternalName(cr)
-	if externalName == "" {
-		return managed.ExternalObservation{ResourceExists: false}, nil
+
+	// Try to determine the UID to look up
+	var uid string
+
+	if externalName != "" {
+		// Parse the external name to extract the UID
+		_, parsedUID, err := parseExternalName(externalName)
+		if err == nil {
+			uid = parsedUID
+		}
 	}
 
-	// Parse the external name to extract the UID
-	// If the external name doesn't match the expected format, the resource hasn't been created yet
-	_, uid, err := parseExternalName(externalName)
-	if err != nil {
-		// External name doesn't match our format - resource doesn't exist yet
-		return managed.ExternalObservation{ResourceExists: false}, nil //nolint:nilerr // intentional: invalid format means resource not yet created
+	// If we couldn't get UID from external-name, but user specified one in spec,
+	// try to recover from external-create-pending race condition by looking up by spec UID
+	if uid == "" && cr.Spec.ForProvider.UID != nil {
+		uid = *cr.Spec.ForProvider.UID
+	}
+
+	// If we still don't have a UID, resource doesn't exist yet
+	if uid == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
 	// Fetch the data source from Grafana
@@ -258,6 +269,12 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	if ds == nil {
 		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
+
+	// If we found the resource but external-name wasn't set (recovery from create-pending),
+	// set it now so the reconciler can proceed normally
+	if externalName == "" || meta.GetExternalName(cr) != formatExternalName(e.orgID, ds.UID) {
+		meta.SetExternalName(cr, formatExternalName(e.orgID, ds.UID))
 	}
 
 	// Update status with observed values

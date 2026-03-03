@@ -242,16 +242,32 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	// Get the external name (format: <orgId>:<uid>)
 	externalName := meta.GetExternalName(cr)
-	if externalName == "" {
-		return managed.ExternalObservation{ResourceExists: false}, nil
+
+	// Try to determine the UID to look up
+	var uid string
+
+	if externalName != "" {
+		// Parse the external name to extract the UID
+		_, parsedUID, err := parseExternalName(externalName)
+		if err == nil {
+			uid = parsedUID
+		}
 	}
 
-	// Parse the external name to extract the UID
-	// If the external name doesn't match the expected format, the resource hasn't been created yet
-	_, uid, err := parseExternalName(externalName)
-	if err != nil {
-		// External name doesn't match our format - resource doesn't exist yet
-		return managed.ExternalObservation{ResourceExists: false}, nil //nolint:nilerr // intentional: invalid format means resource not yet created
+	// If we couldn't get UID from external-name, but user specified one in configJson,
+	// try to recover from external-create-pending race condition by looking up by spec UID
+	if uid == "" {
+		var configData map[string]any
+		if err := json.Unmarshal([]byte(cr.Spec.ForProvider.ConfigJSON), &configData); err == nil {
+			if specUID, ok := configData["uid"].(string); ok && specUID != "" {
+				uid = specUID
+			}
+		}
+	}
+
+	// If we still don't have a UID, resource doesn't exist yet
+	if uid == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
 	// Fetch the dashboard from Grafana
@@ -264,19 +280,34 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
+	// If we found the resource but external-name wasn't set (recovery from create-pending),
+	// set it now so the reconciler can proceed normally
+	// Extract UID from dashboard response
+	var dashUID string
+	var dashData map[string]any
+	if err := json.Unmarshal(dash.Dashboard, &dashData); err == nil {
+		if u, ok := dashData["uid"].(string); ok {
+			dashUID = u
+		}
+	}
+	if dashUID != "" && (externalName == "" || meta.GetExternalName(cr) != formatExternalName(e.orgID, dashUID)) {
+		meta.SetExternalName(cr, formatExternalName(e.orgID, dashUID))
+	}
+
 	// Update status with observed values
-	cr.Status.AtProvider.UID = &uid
+	if dashUID != "" {
+		cr.Status.AtProvider.UID = &dashUID
+	} else {
+		cr.Status.AtProvider.UID = &uid
+	}
 	cr.Status.AtProvider.URL = &dash.Meta.URL
 	cr.Status.AtProvider.Version = &dash.Meta.Version
 	cr.Status.AtProvider.Folder = &dash.Meta.FolderUID
 
-	// Extract dashboard ID from the dashboard JSON
-	var dashData map[string]any
-	if err := json.Unmarshal(dash.Dashboard, &dashData); err == nil {
-		if id, ok := dashData["id"].(float64); ok {
-			idVal := int64(id)
-			cr.Status.AtProvider.DashboardID = &idVal
-		}
+	// Extract dashboard ID from the dashboard JSON (reuse dashData from above)
+	if id, ok := dashData["id"].(float64); ok {
+		idVal := int64(id)
+		cr.Status.AtProvider.DashboardID = &idVal
 	}
 
 	// Store the observed config JSON
