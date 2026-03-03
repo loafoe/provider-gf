@@ -1,0 +1,83 @@
+# Example Dashboard resource
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Dashboard
+metadata:
+  name: example-dashboard
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    configJson: |
+      {
+        "title": "Example Dashboard",
+        "tags": ["crossplane", "example"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 0,
+        "refresh": "25s",
+        "panels": [
+          {
+            "id": 1,
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            },
+            "type": "text",
+            "title": "Welcome",
+            "options": {
+              "content": "# Hello from Crossplane!\n\nThis dashboard was created by the Grafana Crossplane provider.",
+              "mode": "markdown"
+            }
+          }
+        ]
+      }
+    folder: ""
+    message: "Created by Crossplane"
+    overwrite: true
+
+# Example Dashboard with folder
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Dashboard
+metadata:
+  name: monitoring-dashboard
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-token-auth
+  forProvider:
+    configJson: |
+      {
+        "title": "Monitoring Dashboard",
+        "tags": ["monitoring", "crossplane"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 0,
+        "refresh": "10s",
+        "panels": [
+          {
+            "id": 1,
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 0
+            },
+            "type": "stat",
+            "title": "Total Requests",
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total[5m]))",
+                "refId": "A"
+              }
+            ]
+          }
+        ]
+      }
+    folder: "monitoring"
+    message: "Created by Crossplane"
+    overwrite: true

@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sample contains group sample API versions
-package sample
+// Package oss contains oss resources for the Grafana provider.
+package oss

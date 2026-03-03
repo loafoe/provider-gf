@@ -1,0 +1,34 @@
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Dashboard
+metadata:
+  name: test-dashboard
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    configJson: |
+      {
+        "title": "Crossplane Test Dashboard",
+        "tags": ["crossplane", "test"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "panels": [
+          {
+            "id": 1,
+            "type": "text",
+            "title": "Welcome Panel",
+            "gridPos": {
+              "x": 0,
+              "y": 0,
+              "w": 12,
+              "h": 8
+            },
+            "options": {
+              "mode": "markdown",
+              "content": "# Hello from Crossplane!\n\nThis dashboard was **UPDATED** by the Crossplane Grafana Provider.\n\nUpdate time: 2026-03-03"
+            }
+          }
+        ]
+      }

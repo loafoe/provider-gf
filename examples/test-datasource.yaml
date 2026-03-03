@@ -1,0 +1,22 @@
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DataSource
+metadata:
+  name: test-mimir-copy
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    name: "Mimir Copy (Crossplane)"
+    type: prometheus
+    uid: crossplane-mimir-test
+    url: "http://mimir-gateway.mimir-system.svc.cluster.local/prometheus"
+    accessMode: proxy
+    isDefault: false
+    jsonDataEncoded: |
+      {
+        "httpMethod": "POST",
+        "prometheusType": "Mimir",
+        "prometheusVersion": "2.10.1"
+      }

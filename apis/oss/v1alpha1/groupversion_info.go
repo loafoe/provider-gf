@@ -14,10 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha1 contains the v1alpha1 group Sample resources of the template provider.
-// +kubebuilder:object:generate=true
-// +groupName=sample.template.crossplane.io
-// +versionName=v1alpha1
 package v1alpha1
 
 import (
@@ -27,7 +23,7 @@ import (
 
 // Package type metadata.
 const (
-	Group   = "sample.template.crossplane.io"
+	Group   = "oss.gf.m.crossplane.io"
 	Version = "v1alpha1"
 )
 

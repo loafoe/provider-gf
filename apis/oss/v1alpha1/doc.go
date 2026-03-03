@@ -14,4 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package v1alpha1 contains the oss resources of the Grafana provider.
+// +kubebuilder:object:generate=true
+// +groupName=oss.gf.m.crossplane.io
+// +versionName=v1alpha1
 package v1alpha1

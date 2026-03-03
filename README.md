@@ -1,39 +1,180 @@
-# provider-template
+# provider-gf
 
-`provider-template` is a minimal [Crossplane](https://crossplane.io/) Provider
-that is meant to be used as a template for implementing new Providers. It comes
-with the following features that are meant to be refactored:
+`provider-gf` is a [Crossplane](https://crossplane.io/) Provider for [Grafana](https://grafana.com/).
 
-- A `ProviderConfig` type that only points to a credentials `Secret`.
-- A `MyType` resource type that serves as an example managed resource.
-- A managed resource controller that reconciles `MyType` objects and simply
-  prints their configuration in its `Observe` method.
+This provider is built for **Crossplane v2** and uses namespaced resources only.
+
+## Supported Resources
+
+- **Dashboard** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana dashboards
+
+## Installation
+
+Install the provider into your Crossplane cluster:
+
+```yaml
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-gf
+spec:
+  package: crossplane/provider-gf:latest
+```
+
+## Authentication
+
+The provider supports two authentication methods. Both use namespaced `ProviderConfig` resources.
+
+### Basic Auth
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-credentials
+  namespace: default
+type: Opaque
+stringData:
+  username: admin
+  password: admin
+
+---
+apiVersion: gf.m.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: grafana-basic-auth
+  namespace: default
+spec:
+  url: http://localhost:3000
+  credentials:
+    source: Secret
+    authType: basic
+    basicAuth:
+      usernameSecretRef:
+        namespace: default
+        name: grafana-credentials
+        key: username
+      passwordSecretRef:
+        namespace: default
+        name: grafana-credentials
+        key: password
+```
+
+### Service Account Token
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-token
+  namespace: default
+type: Opaque
+stringData:
+  token: glsa_xxxxxxxxxxxxxxxxxxxxx
+
+---
+apiVersion: gf.m.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: grafana-token-auth
+  namespace: default
+spec:
+  url: http://localhost:3000
+  credentials:
+    source: Secret
+    authType: token
+    tokenAuth:
+      tokenSecretRef:
+        namespace: default
+        name: grafana-token
+        key: token
+```
+
+## Usage
+
+### Creating a Dashboard
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Dashboard
+metadata:
+  name: example-dashboard
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    configJson: |
+      {
+        "title": "Example Dashboard",
+        "tags": ["crossplane", "example"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "version": 0,
+        "refresh": "25s",
+        "panels": [
+          {
+            "id": 1,
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            },
+            "type": "text",
+            "title": "Welcome",
+            "options": {
+              "content": "# Hello from Crossplane!\n\nThis dashboard was created by the Grafana Crossplane provider.",
+              "mode": "markdown"
+            }
+          }
+        ]
+      }
+    folder: ""
+    message: "Created by Crossplane"
+    overwrite: true
+```
+
+### Dashboard Spec Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `configJson` | string | Yes | The complete dashboard model JSON |
+| `folder` | string | No | The UID of the folder to save the dashboard in |
+| `message` | string | No | Commit message for version history |
+| `orgId` | string | No | Organization ID (uses provider config default if not set) |
+| `overwrite` | boolean | No | Overwrite existing dashboard with same UID/title (default: false) |
+
+### Dashboard Status Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `configJson` | string | The observed dashboard model JSON |
+| `dashboardId` | int64 | The numeric ID computed by Grafana |
+| `folder` | string | The folder UID containing the dashboard |
+| `uid` | string | The unique identifier used in URLs |
+| `url` | string | The full URL of the dashboard |
+| `version` | int64 | Version number, incremented on each save |
 
 ## Developing
 
-1. Use this repository as a template to create a new one.
-1. Run `make submodules` to initialize the "build" Make submodule we use for CI/CD.
-1. Rename the provider by running the following command:
-```shell
-  export provider_name=MyProvider # Camel case, e.g. GitHub
-  make provider.prepare provider=${provider_name}
-```
-4. Add your new type by running the following command:
-```shell
-  export group=sample # lower case e.g. core, cache, database, storage, etc.
-  export type=MyType # Camel casee.g. Bucket, Database, CacheCluster, etc.
-  make provider.addtype provider=${provider_name} group=${group} kind=${type}
-```
-5. Replace the *sample* group with your new group in apis/{provider}.go
-5. Replace the *mytype* type with your new type in internal/controller/{provider}.go
-5. Replace the default controller and ProviderConfig implementations with your own
-5. Register your new type into `SetupGated` function in `internal/controller/register.go`
-5. Run `make reviewable` to run code generation, linters, and tests.
-5. Run `make build` to build the provider.
+1. Run `make submodules` to initialize the "build" Make submodule.
+2. Run `make generate` to generate code.
+3. Run `make reviewable` to run code generation, linters, and tests.
+4. Run `make build` to build the provider.
 
-Refer to Crossplane's [CONTRIBUTING.md] file for more information on how the
-Crossplane community prefers to work. The [Provider Development][provider-dev]
-guide may also be of use.
+### Running Locally
 
-[CONTRIBUTING.md]: https://github.com/crossplane/crossplane/blob/master/CONTRIBUTING.md
-[provider-dev]: https://github.com/crossplane/crossplane/blob/master/contributing/guide-provider-development.md
+```shell
+make run
+```
+
+### Running in a Kind Cluster
+
+```shell
+make dev
+```
+
+## License
+
+Apache 2.0 - See [LICENSE](LICENSE) for more information.

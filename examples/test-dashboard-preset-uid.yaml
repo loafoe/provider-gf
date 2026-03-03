@@ -1,0 +1,36 @@
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Dashboard
+metadata:
+  name: test-dashboard-preset-uid
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    overwrite: true
+    configJson: |
+      {
+        "uid": "crossplane-test-001",
+        "title": "Crossplane Test Dashboard with Preset UID",
+        "tags": ["crossplane", "test", "preset-uid"],
+        "timezone": "browser",
+        "schemaVersion": 16,
+        "panels": [
+          {
+            "id": 1,
+            "type": "text",
+            "title": "Info Panel",
+            "gridPos": {
+              "x": 0,
+              "y": 0,
+              "w": 12,
+              "h": 8
+            },
+            "options": {
+              "mode": "markdown",
+              "content": "# Dashboard with Preset UID\n\nThis dashboard has a well-known UID: `crossplane-test-001`\n\n**Second Update:** Testing CRUD cycle with explicit condition checks."
+            }
+          }
+        ]
+      }

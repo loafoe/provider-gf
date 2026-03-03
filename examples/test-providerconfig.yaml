@@ -1,0 +1,19 @@
+apiVersion: gf.m.crossplane.io/v1alpha1
+kind: ProviderConfig
+metadata:
+  name: grafana-config
+  namespace: monitoring
+spec:
+  url: "https://gf.003d-use1.cd87eda.hsp.philips.com"
+  credentials:
+    source: Secret
+    authType: basic
+    basicAuth:
+      usernameSecretRef:
+        name: grafana-provider-credentials
+        namespace: monitoring
+        key: username
+      passwordSecretRef:
+        name: grafana-provider-credentials
+        namespace: monitoring
+        key: password

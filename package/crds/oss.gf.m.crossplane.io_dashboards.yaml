@@ -4,18 +4,18 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.18.0
-  name: mytypes.sample.template.crossplane.io
+  name: dashboards.oss.gf.m.crossplane.io
 spec:
-  group: sample.template.crossplane.io
+  group: oss.gf.m.crossplane.io
   names:
     categories:
     - crossplane
     - managed
-    - template
-    kind: MyType
-    listKind: MyTypeList
-    plural: mytypes
-    singular: mytype
+    - gf
+    kind: Dashboard
+    listKind: DashboardList
+    plural: dashboards
+    singular: dashboard
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -34,7 +34,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: A MyType is an example API type.
+        description: A Dashboard is a Grafana Dashboard resource.
         properties:
           apiVersion:
             description: |-
@@ -54,15 +54,35 @@ spec:
           metadata:
             type: object
           spec:
-            description: A MyTypeSpec defines the desired state of a MyType.
+            description: A DashboardSpec defines the desired state of a Dashboard.
             properties:
               forProvider:
-                description: MyTypeParameters are the configurable fields of a MyType.
+                description: DashboardParameters are the configurable fields of a
+                  Dashboard.
                 properties:
-                  configurableField:
+                  configJson:
+                    description: ConfigJSON is the complete dashboard model JSON.
                     type: string
+                  folder:
+                    description: Folder is the id or UID of the folder to save the
+                      dashboard in.
+                    type: string
+                  message:
+                    description: Message sets a commit message for the version history.
+                    type: string
+                  orgId:
+                    description: |-
+                      OrgID is the Organization ID. If not set, the Org ID defined in the
+                      provider config will be used.
+                    type: string
+                  overwrite:
+                    default: false
+                    description: |-
+                      Overwrite set to true if you want to overwrite existing dashboard with
+                      newer version, same dashboard title in folder or same dashboard uid.
+                    type: boolean
                 required:
-                - configurableField
+                - configJson
                 type: object
               managementPolicies:
                 default:
@@ -123,17 +143,50 @@ spec:
             - forProvider
             type: object
           status:
-            description: A MyTypeStatus represents the observed state of a MyType.
+            description: A DashboardStatus represents the observed state of a Dashboard.
             properties:
               atProvider:
-                description: MyTypeObservation are the observable fields of a MyType.
+                description: DashboardObservation are the observable fields of a Dashboard.
                 properties:
-                  configurableField:
+                  configJson:
+                    description: ConfigJSON is the complete dashboard model JSON as
+                      observed.
                     type: string
-                  observableField:
+                  dashboardId:
+                    description: DashboardID is the numeric ID of the dashboard computed
+                      by Grafana.
+                    format: int64
+                    type: integer
+                  folder:
+                    description: Folder is the id or UID of the folder containing
+                      the dashboard.
                     type: string
-                required:
-                - configurableField
+                  id:
+                    description: ID is the unique identifier of the dashboard.
+                    type: string
+                  message:
+                    description: Message is the commit message for the version history.
+                    type: string
+                  orgId:
+                    description: OrgID is the Organization ID.
+                    type: string
+                  overwrite:
+                    description: Overwrite indicates whether existing dashboard was
+                      overwritten.
+                    type: boolean
+                  uid:
+                    description: UID is the unique identifier of a dashboard used
+                      to construct its URL.
+                    type: string
+                  url:
+                    description: URL is the full URL of the dashboard.
+                    type: string
+                  version:
+                    description: |-
+                      Version is the version number of the dashboard, incremented each time
+                      the dashboard is saved.
+                    format: int64
+                    type: integer
                 type: object
               conditions:
                 description: Conditions of the resource.
