@@ -6,7 +6,12 @@ This provider is built for **Crossplane v2** and uses namespaced resources only.
 
 ## Supported Resources
 
-- **Dashboard** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana dashboards
+- **Dashboard** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana dashboards with full JSON configuration and folder placement
+- **DataSource** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana data sources (Prometheus, Loki, Tempo, etc.) with authentication options
+- **DashboardPermission** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage complete permission sets for dashboards (per user/role/team with View/Edit/Admin levels)
+- **Folder** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana folders with hierarchical structure support
+- **LibraryPanel** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana library panels for reusable panel templates
+- **Config** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana provider configuration (organization ID, default folder, timezone, theme)
 
 ## Installation
 
@@ -63,20 +68,10 @@ spec:
 ### Service Account Token
 
 ```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: grafana-token
-  namespace: default
-type: Opaque
-stringData:
-  token: glsa_xxxxxxxxxxxxxxxxxxxxx
-
----
 apiVersion: gf.m.crossplane.io/v1alpha1
 kind: ProviderConfig
 metadata:
-  name: grafana-token-auth
+  name: grafana-basic-auth
   namespace: default
 spec:
   url: http://localhost:3000
@@ -155,6 +150,131 @@ spec:
 | `uid` | string | The unique identifier used in URLs |
 | `url` | string | The full URL of the dashboard |
 | `version` | int64 | Version number, incremented on each save |
+
+### Creating a Folder
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: monitoring-folder
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    title: "Monitoring"
+    uid: "monitoring"
+    orgRef:
+      name: default-org
+  write: true
+  overwrite: true
+```
+
+### Creating a DataSource (Prometheus)
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DataSource
+metadata:
+  name: prometheus-datasource
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    name: "Prometheus"
+    type: "prometheus"
+    url: "http://prometheus:9090"
+    accessMode: "proxy"
+    jsonDataEncoded: '{"httpMethod": "POST", "maxDataPoints": 435}'
+    secureJsonDataEncodedSecretRef:
+      namespace: default
+      name: prometheus-credentials
+      key: jsonDataEncoded
+    orgRef:
+      name: default-org
+  write: true
+  overwrite: true
+```
+
+### Creating a Library Panel
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: LibraryPanel
+metadata:
+  name: custom-metrics-panel
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    name: "Custom Metrics Panel"
+    modelJson: |
+      {
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 8},
+        "id": 1,
+        "title": "Custom Metrics",
+        "type": "graph",
+        "datasource": {"type": "prometheus", "uid": "prometheus"},
+        "fieldConfig": {},
+        "options": {},
+        "targets": [
+          {"refId": "A", "expr": "up", "legendFormat": "up"}
+        ]
+      }
+    folderUid: "general"
+    orgRef:
+      name: default-org
+  write: true
+  overwrite: true
+```
+
+### Managing Dashboard Permissions
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DashboardPermission
+metadata:
+  name: admin-perms
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    dashboardUid: "my-dashboard"
+    orgRef:
+      name: default-org
+    permissions:
+      - permission: "Admin"
+        role: "Admin"
+      - permission: "Edit"
+        role: "Editor"
+      - permission: "View"
+        teamId: 12345
+  write: true
+  overwrite: true
+```
+
+### Config Resource Example
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Config
+metadata:
+  name: grafana-config
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    orgId: 1
+    defaultFolder: "general"
+    timezone: "utc"
+    theme: "dark"
+  write: true
+```
 
 ## Developing
 
