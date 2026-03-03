@@ -1,0 +1,74 @@
+# Example DashboardPermission resource
+# Manages the complete set of permissions for a Grafana dashboard.
+# Permissions not specified here will be REMOVED from the dashboard.
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DashboardPermission
+metadata:
+  name: example-dashboard-permissions
+  namespace: default
+spec:
+  providerConfigRef:
+    kind: ProviderConfig
+    name: grafana-config
+  forProvider:
+    # Reference to an existing dashboard by UID
+    dashboardUid: "your-dashboard-uid"
+    # Grant permissions to all basic roles
+    permissions:
+      # Viewer role gets View permission
+      - role: Viewer
+        permission: View
+      # Editor role gets Edit permission
+      - role: Editor
+        permission: Edit
+      # Admin role gets Admin permission
+      - role: Admin
+        permission: Admin
+
+# Example with Dashboard reference (for dashboards managed by Crossplane)
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DashboardPermission
+metadata:
+  name: crossplane-dashboard-permissions
+  namespace: default
+spec:
+  providerConfigRef:
+    kind: ProviderConfig
+    name: grafana-config
+  forProvider:
+    # Reference to a Dashboard CR managed by this provider
+    dashboardRef:
+      name: my-crossplane-dashboard
+    permissions:
+      - role: Viewer
+        permission: View
+      - role: Editor
+        permission: Edit
+      - role: Admin
+        permission: Admin
+
+# Example with team and user permissions
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DashboardPermission
+metadata:
+  name: team-dashboard-permissions
+  namespace: default
+spec:
+  providerConfigRef:
+    kind: ProviderConfig
+    name: grafana-config
+  forProvider:
+    dashboardUid: "example-uid"
+    permissions:
+      # Grant View permission to a specific team
+      - teamId: 1
+        permission: View
+      # Grant Edit permission to a specific user
+      - userId: 2
+        permission: Edit
+      # Grant Admin permission to Admin role
+      - role: Admin
+        permission: Admin

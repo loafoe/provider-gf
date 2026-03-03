@@ -1217,6 +1217,85 @@ func (c *Client) SetDashboardPermissions(ctx context.Context, dashboardUID strin
 	return nil
 }
 
+// FolderPermissionItem represents a single permission entry for a folder.
+type FolderPermissionItem struct {
+	ID             int64  `json:"id,omitempty"`
+	FolderUID      string `json:"uid,omitempty"`
+	UserID         int64  `json:"userId,omitempty"`
+	UserLogin      string `json:"userLogin,omitempty"`
+	UserEmail      string `json:"userEmail,omitempty"`
+	TeamID         int64  `json:"teamId,omitempty"`
+	Team           string `json:"team,omitempty"`
+	Role           string `json:"role,omitempty"`
+	Permission     int    `json:"permission"`
+	PermissionName string `json:"permissionName,omitempty"`
+	Created        string `json:"created,omitempty"`
+	Updated        string `json:"updated,omitempty"`
+}
+
+// FolderPermissionRequest represents the request body for setting folder permissions.
+type FolderPermissionRequest struct {
+	Items []FolderPermissionRequestItem `json:"items"`
+}
+
+// FolderPermissionRequestItem represents a single permission item in the request.
+type FolderPermissionRequestItem struct {
+	Role       string `json:"role,omitempty"`
+	Permission int    `json:"permission"`
+	TeamID     int64  `json:"teamId,omitempty"`
+	UserID     int64  `json:"userId,omitempty"`
+}
+
+// GetFolderPermissions gets all permissions for a folder by its UID.
+func (c *Client) GetFolderPermissions(ctx context.Context, folderUID string) ([]FolderPermissionItem, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/folders/"+folderUID+"/permissions", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get folder permissions: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Folder doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get folder permissions: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var permissions []FolderPermissionItem
+	if err := json.Unmarshal(body, &permissions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return permissions, nil
+}
+
+// SetFolderPermissions sets all permissions for a folder by its UID.
+// This operation replaces all existing permissions.
+func (c *Client) SetFolderPermissions(ctx context.Context, folderUID string, req FolderPermissionRequest) error {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/folders/"+folderUID+"/permissions", req)
+	if err != nil {
+		return fmt.Errorf("failed to set folder permissions: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to set folder permissions: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 func (c *Client) newRequest(ctx context.Context, method, path string, body any) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {

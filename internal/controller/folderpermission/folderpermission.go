@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package dashboardpermission
+package folderpermission
 
 import (
 	"context"
@@ -44,21 +44,21 @@ import (
 )
 
 const (
-	errNotDashboardPermission = "managed resource is not a DashboardPermission custom resource"
-	errTrackPCUsage           = "cannot track ProviderConfig usage"
-	errGetPC                  = "cannot get ProviderConfig"
-	errNewClient              = "cannot create Grafana client"
-	errInvalidExternalName    = "invalid external name format, expected <orgId>:<dashboardUid>"
-	errResolveOrgRef          = "cannot resolve organization reference"
-	errResolveDashboardRef    = "cannot resolve dashboard reference"
+	errNotFolderPermission = "managed resource is not a FolderPermission custom resource"
+	errTrackPCUsage        = "cannot track ProviderConfig usage"
+	errGetPC               = "cannot get ProviderConfig"
+	errNewClient           = "cannot create Grafana client"
+	errInvalidExternalName = "invalid external name format, expected <orgId>:<folderUid>"
+	errResolveOrgRef       = "cannot resolve organization reference"
+	errResolveFolderRef    = "cannot resolve folder reference"
 )
 
-// formatExternalName creates an external name in the format <orgId>:<dashboardUid>.
-func formatExternalName(orgID int64, dashboardUID string) string {
-	return strconv.FormatInt(orgID, 10) + ":" + dashboardUID
+// formatExternalName creates an external name in the format <orgId>:<folderUid>.
+func formatExternalName(orgID int64, folderUID string) string {
+	return strconv.FormatInt(orgID, 10) + ":" + folderUID
 }
 
-// parseExternalName parses an external name in the format <orgId>:<dashboardUid>.
+// parseExternalName parses an external name in the format <orgId>:<folderUid>.
 func parseExternalName(externalName string) (int64, string, error) { //nolint:unparam
 	parts := strings.SplitN(externalName, ":", 2)
 	if len(parts) != 2 || parts[1] == "" {
@@ -71,14 +71,14 @@ func parseExternalName(externalName string) (int64, string, error) { //nolint:un
 	return orgID, parts[1], nil
 }
 
-// ExtractDashboardUID extracts the dashboard UID from a Dashboard resource's external name.
-func ExtractDashboardUID() reference.ExtractValueFn {
+// ExtractFolderUID extracts the folder UID from a Folder resource's external name.
+func ExtractFolderUID() reference.ExtractValueFn {
 	return func(mg resource.Managed) string {
-		dash, ok := mg.(*v1alpha1.Dashboard)
+		folder, ok := mg.(*v1alpha1.Folder)
 		if !ok {
 			return ""
 		}
-		externalName := meta.GetExternalName(dash)
+		externalName := meta.GetExternalName(folder)
 		if externalName == "" {
 			return ""
 		}
@@ -91,19 +91,19 @@ func ExtractDashboardUID() reference.ExtractValueFn {
 	}
 }
 
-// SetupGated adds a controller that reconciles DashboardPermission managed resources.
+// SetupGated adds a controller that reconciles FolderPermission managed resources.
 func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 	o.Gate.Register(func() {
 		if err := Setup(mgr, o); err != nil {
-			panic(errors.Wrap(err, "cannot setup DashboardPermission controller"))
+			panic(errors.Wrap(err, "cannot setup FolderPermission controller"))
 		}
-	}, v1alpha1.DashboardPermissionGroupVersionKind)
+	}, v1alpha1.FolderPermissionGroupVersionKind)
 	return nil
 }
 
-// Setup adds a controller that reconciles DashboardPermission managed resources.
+// Setup adds a controller that reconciles FolderPermission managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
-	name := managed.ControllerName(v1alpha1.DashboardPermissionGroupKind)
+	name := managed.ControllerName(v1alpha1.FolderPermissionGroupKind)
 
 	opts := []managed.ReconcilerOption{
 		managed.WithExternalConnector(&connector{
@@ -126,20 +126,20 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 	}
 	if o.MetricOptions != nil && o.MetricOptions.MRStateMetrics != nil {
 		stateMetricsRecorder := statemetrics.NewMRStateRecorder(
-			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.DashboardPermissionList{}, o.MetricOptions.PollStateMetricInterval,
+			mgr.GetClient(), o.Logger, o.MetricOptions.MRStateMetrics, &v1alpha1.FolderPermissionList{}, o.MetricOptions.PollStateMetricInterval,
 		)
 		if err := mgr.Add(stateMetricsRecorder); err != nil {
 			return errors.Wrap(err, "cannot register MR state metrics recorder")
 		}
 	}
 
-	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.DashboardPermissionGroupVersionKind), opts...)
+	r := managed.NewReconciler(mgr, resource.ManagedKind(v1alpha1.FolderPermissionGroupVersionKind), opts...)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		WithOptions(o.ForControllerRuntime()).
 		WithEventFilter(resource.DesiredStateChanged()).
-		For(&v1alpha1.DashboardPermission{}).
+		For(&v1alpha1.FolderPermission{}).
 		Complete(ratelimiter.NewReconciler(name, r, o.GlobalRateLimiter))
 }
 
@@ -149,9 +149,9 @@ type connector struct {
 }
 
 func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.ExternalClient, error) { //nolint:gocyclo
-	cr, ok := mg.(*v1alpha1.DashboardPermission)
+	cr, ok := mg.(*v1alpha1.FolderPermission)
 	if !ok {
-		return nil, errors.New(errNotDashboardPermission)
+		return nil, errors.New(errNotFolderPermission)
 	}
 
 	if err := c.usage.Track(ctx, cr); err != nil {
@@ -212,13 +212,13 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errResolveOrgRef)
 	}
 
-	// Resolve dashboardUID from DashboardRef/DashboardSelector or direct DashboardUID
-	dashboardUID, err := c.resolveDashboardUID(ctx, cr)
+	// Resolve folderUID from FolderRef/FolderSelector or direct FolderUID
+	folderUID, err := c.resolveFolderUID(ctx, cr)
 	if err != nil {
-		return nil, errors.Wrap(err, errResolveDashboardRef)
+		return nil, errors.Wrap(err, errResolveFolderRef)
 	}
 
-	return &external{client: gfClient, kube: c.kube, orgID: orgID, dashboardUID: dashboardUID}, nil
+	return &external{client: gfClient, kube: c.kube, orgID: orgID, folderUID: folderUID}, nil
 }
 
 func (c *connector) getSecretValue(ctx context.Context, namespace string, ref xpv1.SecretKeySelector) (string, error) {
@@ -233,20 +233,20 @@ func (c *connector) getSecretValue(ctx context.Context, namespace string, ref xp
 	return string(data), nil
 }
 
-func (c *connector) resolveDashboardUID(ctx context.Context, cr *v1alpha1.DashboardPermission) (string, error) {
+func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.FolderPermission) (string, error) {
 	// If direct UID is provided, use it
-	if cr.Spec.ForProvider.DashboardUID != nil && *cr.Spec.ForProvider.DashboardUID != "" {
-		return *cr.Spec.ForProvider.DashboardUID, nil
+	if cr.Spec.ForProvider.FolderUID != nil && *cr.Spec.ForProvider.FolderUID != "" {
+		return *cr.Spec.ForProvider.FolderUID, nil
 	}
 
 	// Try to resolve from reference
-	if cr.Spec.ForProvider.DashboardRef != nil || cr.Spec.ForProvider.DashboardSelector != nil {
+	if cr.Spec.ForProvider.FolderRef != nil || cr.Spec.ForProvider.FolderSelector != nil {
 		rsp, err := reference.NewAPIResolver(c.kube, cr).Resolve(ctx, reference.ResolutionRequest{
 			CurrentValue: "",
-			Reference:    cr.Spec.ForProvider.DashboardRef,
-			Selector:     cr.Spec.ForProvider.DashboardSelector,
-			To:           reference.To{Managed: &v1alpha1.Dashboard{}, List: &v1alpha1.DashboardList{}},
-			Extract:      ExtractDashboardUID(),
+			Reference:    cr.Spec.ForProvider.FolderRef,
+			Selector:     cr.Spec.ForProvider.FolderSelector,
+			To:           reference.To{Managed: &v1alpha1.Folder{}, List: &v1alpha1.FolderList{}},
+			Extract:      ExtractFolderUID(),
 			Namespace:    cr.GetNamespace(),
 		})
 		if err == nil && rsp.ResolvedValue != "" {
@@ -261,7 +261,7 @@ func (c *connector) resolveDashboardUID(ctx context.Context, cr *v1alpha1.Dashbo
 			}
 		}
 		if err != nil {
-			return "", errors.Wrap(err, "cannot resolve dashboard reference")
+			return "", errors.Wrap(err, "cannot resolve folder reference")
 		}
 	}
 
@@ -274,41 +274,41 @@ func (c *connector) resolveDashboardUID(ctx context.Context, cr *v1alpha1.Dashbo
 		}
 	}
 
-	return "", errors.New("dashboardUid must be specified via dashboardUid, dashboardRef, or dashboardSelector")
+	return "", errors.New("folderUid must be specified via folderUid, folderRef, or folderSelector")
 }
 
 type external struct {
-	client       *grafana.Client
-	kube         client.Client
-	orgID        int64
-	dashboardUID string
+	client    *grafana.Client
+	kube      client.Client
+	orgID     int64
+	folderUID string
 }
 
 func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.ExternalObservation, error) { //nolint:gocyclo
-	cr, ok := mg.(*v1alpha1.DashboardPermission)
+	cr, ok := mg.(*v1alpha1.FolderPermission)
 	if !ok {
-		return managed.ExternalObservation{}, errors.New(errNotDashboardPermission)
+		return managed.ExternalObservation{}, errors.New(errNotFolderPermission)
 	}
 
-	// If no dashboard UID resolved, resource cannot exist
-	if e.dashboardUID == "" {
+	// If no folder UID resolved, resource cannot exist
+	if e.folderUID == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	// Check if the dashboard exists by trying to get its permissions
-	permissions, err := e.client.GetDashboardPermissions(ctx, e.dashboardUID)
+	// Check if the folder exists by trying to get its permissions
+	permissions, err := e.client.GetFolderPermissions(ctx, e.folderUID)
 	if err != nil {
-		return managed.ExternalObservation{}, errors.Wrap(err, "cannot get dashboard permissions")
+		return managed.ExternalObservation{}, errors.Wrap(err, "cannot get folder permissions")
 	}
 	if permissions == nil {
-		// Dashboard doesn't exist
+		// Folder doesn't exist
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
 	// Check if external name is set - if not and we have no desired permissions,
 	// the resource doesn't exist yet (fresh create scenario)
 	externalName := meta.GetExternalName(cr)
-	expectedExternalName := formatExternalName(e.orgID, e.dashboardUID)
+	expectedExternalName := formatExternalName(e.orgID, e.folderUID)
 
 	// If we have no external name and no desired permissions, resource doesn't exist
 	if externalName == "" && len(cr.Spec.ForProvider.Permissions) == 0 {
@@ -327,15 +327,15 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}
 
 	// Update status with observed values
-	cr.Status.AtProvider.DashboardUID = &e.dashboardUID
+	cr.Status.AtProvider.FolderUID = &e.folderUID
 	cr.Status.AtProvider.OrgID = &e.orgID
 	cr.Status.AtProvider.ID = &expectedExternalName
 
 	// Convert observed permissions to observation format
-	observedPerms := make([]v1alpha1.PermissionItemObservation, 0, len(permissions))
+	observedPerms := make([]v1alpha1.FolderPermissionItemObservation, 0, len(permissions))
 	for _, p := range permissions {
 		permName := grafana.PermissionLevelToName(p.Permission)
-		obs := v1alpha1.PermissionItemObservation{
+		obs := v1alpha1.FolderPermissionItemObservation{
 			Permission: &permName,
 		}
 		if p.Role != "" {
@@ -362,7 +362,7 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
-func (e *external) isUpToDate(cr *v1alpha1.DashboardPermission, observed []grafana.DashboardPermissionItem) bool {
+func (e *external) isUpToDate(cr *v1alpha1.FolderPermission, observed []grafana.FolderPermissionItem) bool {
 	desired := cr.Spec.ForProvider.Permissions
 
 	// Build sets for comparison
@@ -421,9 +421,9 @@ func (e *external) permissionKey(role *string, teamID *int64, userID *int64) str
 }
 
 func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
-	cr, ok := mg.(*v1alpha1.DashboardPermission)
+	cr, ok := mg.(*v1alpha1.FolderPermission)
 	if !ok {
-		return managed.ExternalCreation{}, errors.New(errNotDashboardPermission)
+		return managed.ExternalCreation{}, errors.New(errNotFolderPermission)
 	}
 
 	cr.Status.SetConditions(xpv1.Creating())
@@ -432,38 +432,38 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	req := e.buildPermissionRequest(cr)
 
 	// Set permissions
-	if err := e.client.SetDashboardPermissions(ctx, e.dashboardUID, req); err != nil {
-		return managed.ExternalCreation{}, errors.Wrap(err, "cannot set dashboard permissions")
+	if err := e.client.SetFolderPermissions(ctx, e.folderUID, req); err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "cannot set folder permissions")
 	}
 
 	// Set external name
-	meta.SetExternalName(cr, formatExternalName(e.orgID, e.dashboardUID))
+	meta.SetExternalName(cr, formatExternalName(e.orgID, e.folderUID))
 
 	return managed.ExternalCreation{}, nil
 }
 
 func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
-	cr, ok := mg.(*v1alpha1.DashboardPermission)
+	cr, ok := mg.(*v1alpha1.FolderPermission)
 	if !ok {
-		return managed.ExternalUpdate{}, errors.New(errNotDashboardPermission)
+		return managed.ExternalUpdate{}, errors.New(errNotFolderPermission)
 	}
 
 	// Build permission request
 	req := e.buildPermissionRequest(cr)
 
 	// Set permissions (replaces all existing)
-	if err := e.client.SetDashboardPermissions(ctx, e.dashboardUID, req); err != nil {
-		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot set dashboard permissions")
+	if err := e.client.SetFolderPermissions(ctx, e.folderUID, req); err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot set folder permissions")
 	}
 
 	return managed.ExternalUpdate{}, nil
 }
 
-func (e *external) buildPermissionRequest(cr *v1alpha1.DashboardPermission) grafana.DashboardPermissionRequest {
-	items := make([]grafana.DashboardPermissionRequestItem, 0, len(cr.Spec.ForProvider.Permissions))
+func (e *external) buildPermissionRequest(cr *v1alpha1.FolderPermission) grafana.FolderPermissionRequest {
+	items := make([]grafana.FolderPermissionRequestItem, 0, len(cr.Spec.ForProvider.Permissions))
 
 	for _, p := range cr.Spec.ForProvider.Permissions {
-		item := grafana.DashboardPermissionRequestItem{
+		item := grafana.FolderPermissionRequestItem{
 			Permission: grafana.PermissionNameToLevel(p.Permission),
 		}
 		if p.Role != nil {
@@ -478,22 +478,22 @@ func (e *external) buildPermissionRequest(cr *v1alpha1.DashboardPermission) graf
 		items = append(items, item)
 	}
 
-	return grafana.DashboardPermissionRequest{Items: items}
+	return grafana.FolderPermissionRequest{Items: items}
 }
 
 func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
-	cr, ok := mg.(*v1alpha1.DashboardPermission)
+	cr, ok := mg.(*v1alpha1.FolderPermission)
 	if !ok {
-		return managed.ExternalDelete{}, errors.New(errNotDashboardPermission)
+		return managed.ExternalDelete{}, errors.New(errNotFolderPermission)
 	}
 
 	cr.Status.SetConditions(xpv1.Deleting())
 
 	// Set empty permissions to remove all
-	req := grafana.DashboardPermissionRequest{Items: []grafana.DashboardPermissionRequestItem{}}
+	req := grafana.FolderPermissionRequest{Items: []grafana.FolderPermissionRequestItem{}}
 
-	if err := e.client.SetDashboardPermissions(ctx, e.dashboardUID, req); err != nil {
-		return managed.ExternalDelete{}, errors.Wrap(err, "cannot remove dashboard permissions")
+	if err := e.client.SetFolderPermissions(ctx, e.folderUID, req); err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, "cannot remove folder permissions")
 	}
 
 	return managed.ExternalDelete{}, nil

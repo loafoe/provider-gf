@@ -1,0 +1,74 @@
+# Example FolderPermission resource
+# Manages the complete set of permissions for a Grafana folder.
+# Permissions not specified here will be REMOVED from the folder.
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: FolderPermission
+metadata:
+  name: example-folder-permissions
+  namespace: default
+spec:
+  providerConfigRef:
+    kind: ProviderConfig
+    name: grafana-config
+  forProvider:
+    # Reference to an existing folder by UID
+    folderUid: "your-folder-uid"
+    # Grant permissions to all basic roles
+    permissions:
+      # Viewer role gets View permission
+      - role: Viewer
+        permission: View
+      # Editor role gets Edit permission
+      - role: Editor
+        permission: Edit
+      # Admin role gets Admin permission
+      - role: Admin
+        permission: Admin
+
+# Example with Folder reference (for folders managed by Crossplane)
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: FolderPermission
+metadata:
+  name: crossplane-folder-permissions
+  namespace: default
+spec:
+  providerConfigRef:
+    kind: ProviderConfig
+    name: grafana-config
+  forProvider:
+    # Reference to a Folder CR managed by this provider
+    folderRef:
+      name: my-crossplane-folder
+    permissions:
+      - role: Viewer
+        permission: View
+      - role: Editor
+        permission: Edit
+      - role: Admin
+        permission: Admin
+
+# Example with team and user permissions
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: FolderPermission
+metadata:
+  name: team-folder-permissions
+  namespace: default
+spec:
+  providerConfigRef:
+    kind: ProviderConfig
+    name: grafana-config
+  forProvider:
+    folderUid: "example-uid"
+    permissions:
+      # Grant View permission to a specific team
+      - teamId: 1
+        permission: View
+      # Grant Edit permission to a specific user
+      - userId: 2
+        permission: Edit
+      # Grant Admin permission to Admin role
+      - role: Admin
+        permission: Admin

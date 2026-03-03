@@ -26,6 +26,7 @@ import (
 	"github.com/crossplane/provider-gf/internal/controller/dashboardpermission"
 	"github.com/crossplane/provider-gf/internal/controller/datasource"
 	"github.com/crossplane/provider-gf/internal/controller/folder"
+	"github.com/crossplane/provider-gf/internal/controller/folderpermission"
 	"github.com/crossplane/provider-gf/internal/controller/librarypanel"
 	"github.com/crossplane/provider-gf/internal/controller/organization"
 )
@@ -40,6 +41,7 @@ func SetupGated(mgr ctrl.Manager, o controller.Options) error {
 		dashboardpermission.SetupGated,
 		datasource.SetupGated,
 		folder.SetupGated,
+		folderpermission.SetupGated,
 		librarypanel.SetupGated,
 		organization.SetupGated,
 	} {
