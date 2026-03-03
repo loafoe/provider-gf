@@ -1,13 +1,13 @@
-apiVersion: meta.pkg.crossplane.io/v1alpha1
+apiVersion: meta.pkg.crossplane.io/v1
 kind: Provider
 metadata:
   name: provider-gf
   annotations:
-    meta.crossplane.io/maintainer: Crossplane Maintainers <info@crossplane.io>
-    meta.crossplane.io/source: github.com/crossplane/provider-gf
+    meta.crossplane.io/maintainer: Andy Lo-A-Foe <andy.loafoe@gmail.com>
+    meta.crossplane.io/source: github.com/loafoe/provider-gf
     meta.crossplane.io/license: Apache-2.0
     meta.crossplane.io/description: |
-      A Crossplane provider for Grafana.
+      A native Crossplane provider for Grafana.
 spec:
   capabilities:
     - safe-start
