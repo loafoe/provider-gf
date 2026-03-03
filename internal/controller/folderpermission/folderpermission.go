@@ -233,6 +233,19 @@ func (c *connector) getSecretValue(ctx context.Context, namespace string, ref xp
 	return string(data), nil
 }
 
+// extractUIDFromExternalName attempts to extract the UID from an external name.
+func extractUIDFromExternalName(cr resource.Managed) string {
+	externalName := meta.GetExternalName(cr)
+	if externalName == "" {
+		return ""
+	}
+	_, uid, err := parseExternalName(externalName)
+	if err != nil {
+		return ""
+	}
+	return uid
+}
+
 func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.FolderPermission) (string, error) {
 	// If direct UID is provided, use it
 	if cr.Spec.ForProvider.FolderUID != nil && *cr.Spec.ForProvider.FolderUID != "" {
@@ -253,12 +266,8 @@ func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.FolderPer
 			return rsp.ResolvedValue, nil
 		}
 		// If resolution fails but we have an external name (e.g., during deletion), extract UID from it
-		externalName := meta.GetExternalName(cr)
-		if externalName != "" {
-			_, uid, parseErr := parseExternalName(externalName)
-			if parseErr == nil && uid != "" {
-				return uid, nil
-			}
+		if uid := extractUIDFromExternalName(cr); uid != "" {
+			return uid, nil
 		}
 		if err != nil {
 			return "", errors.Wrap(err, "cannot resolve folder reference")
@@ -266,12 +275,8 @@ func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.FolderPer
 	}
 
 	// Fallback: try to extract from external name (for deletion scenarios)
-	externalName := meta.GetExternalName(cr)
-	if externalName != "" {
-		_, uid, err := parseExternalName(externalName)
-		if err == nil && uid != "" {
-			return uid, nil
-		}
+	if uid := extractUIDFromExternalName(cr); uid != "" {
+		return uid, nil
 	}
 
 	return "", errors.New("folderUid must be specified via folderUid, folderRef, or folderSelector")

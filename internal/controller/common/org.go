@@ -49,8 +49,9 @@ func ExtractOrgID() reference.ExtractValueFn {
 func ResolveOrgID(ctx context.Context, kube client.Client, mg resource.Managed, orgRef *xpv1.Reference, orgSelector *xpv1.Selector, directOrgID *int64, providerConfigOrgID *int64) (int64, error) {
 	orgID := int64(1)
 
-	// Try to resolve org reference first
-	if orgRef != nil || orgSelector != nil {
+	switch {
+	case orgRef != nil || orgSelector != nil:
+		// Try to resolve org reference first
 		rsp, err := reference.NewAPIResolver(kube, mg).Resolve(ctx, reference.ResolutionRequest{
 			CurrentValue: "",
 			Reference:    orgRef,
@@ -69,9 +70,9 @@ func ResolveOrgID(ctx context.Context, kube client.Client, mg resource.Managed, 
 			}
 			orgID = resolvedOrgID
 		}
-	} else if directOrgID != nil {
+	case directOrgID != nil:
 		orgID = *directOrgID
-	} else if providerConfigOrgID != nil {
+	case providerConfigOrgID != nil:
 		orgID = *providerConfigOrgID
 	}
 

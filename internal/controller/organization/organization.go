@@ -44,6 +44,11 @@ const (
 	errTrackPCUsage    = "cannot track ProviderConfig usage"
 	errGetPC           = "cannot get ProviderConfig"
 	errNewClient       = "cannot create Grafana client"
+
+	// Grafana role constants
+	roleAdmin  = "Admin"
+	roleEditor = "Editor"
+	roleViewer = "Viewer"
 )
 
 // SetupGated adds a controller that reconciles Organization managed resources.
@@ -235,11 +240,11 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	var adminUsers, editorUsers, viewerUsers []int64
 	for _, u := range users {
 		switch u.Role {
-		case "Admin":
+		case roleAdmin:
 			adminUsers = append(adminUsers, u.UserID)
-		case "Editor":
+		case roleEditor:
 			editorUsers = append(editorUsers, u.UserID)
-		case "Viewer":
+		case roleViewer:
 			viewerUsers = append(viewerUsers, u.UserID)
 		}
 	}
@@ -250,10 +255,7 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	cr.Status.SetConditions(xpv1.Available())
 
 	// Check if up to date
-	isUpToDate, err := e.isUpToDate(ctx, cr, org, users)
-	if err != nil {
-		return managed.ExternalObservation{}, errors.Wrap(err, "cannot check if organization is up to date")
-	}
+	isUpToDate := e.isUpToDate(cr, org, users)
 
 	return managed.ExternalObservation{
 		ResourceExists:   true,
@@ -261,17 +263,17 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
-func (e *external) isUpToDate(ctx context.Context, cr *v1alpha1.Organization, org *grafana.Organization, users []grafana.OrgUser) (bool, error) { //nolint:gocyclo
+func (e *external) isUpToDate(cr *v1alpha1.Organization, org *grafana.Organization, users []grafana.OrgUser) bool { //nolint:gocyclo
 	fp := cr.Spec.ForProvider
 
 	// Check name
 	if fp.Name != org.Name {
-		return false, nil
+		return false
 	}
 
 	// If no users are specified, don't check user membership
 	if len(fp.Admins) == 0 && len(fp.Editors) == 0 && len(fp.Viewers) == 0 {
-		return true, nil
+		return true
 	}
 
 	// Build current user maps by role
@@ -281,11 +283,11 @@ func (e *external) isUpToDate(ctx context.Context, cr *v1alpha1.Organization, or
 
 	for _, u := range users {
 		switch u.Role {
-		case "Admin":
+		case roleAdmin:
 			currentAdmins[u.Email] = u.UserID
-		case "Editor":
+		case roleEditor:
 			currentEditors[u.Email] = u.UserID
-		case "Viewer":
+		case roleViewer:
 			currentViewers[u.Email] = u.UserID
 		}
 	}
@@ -293,25 +295,25 @@ func (e *external) isUpToDate(ctx context.Context, cr *v1alpha1.Organization, or
 	// Check admins - all desired admins must exist
 	for _, email := range fp.Admins {
 		if _, ok := currentAdmins[email]; !ok {
-			return false, nil
+			return false
 		}
 	}
 
 	// Check editors - all desired editors must exist
 	for _, email := range fp.Editors {
 		if _, ok := currentEditors[email]; !ok {
-			return false, nil
+			return false
 		}
 	}
 
 	// Check viewers - all desired viewers must exist
 	for _, email := range fp.Viewers {
 		if _, ok := currentViewers[email]; !ok {
-			return false, nil
+			return false
 		}
 	}
 
-	return true, nil
+	return true
 }
 
 func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
