@@ -29,8 +29,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reference"
+	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
@@ -58,7 +58,7 @@ func formatExternalName(orgID int64, folderUID, groupName string) string {
 	return strconv.FormatInt(orgID, 10) + ":" + folderUID + ":" + groupName
 }
 
-func parseExternalName(externalName string) (int64, string, string, error) {
+func parseExternalName(externalName string) (int64, string, string, error) { //nolint:unparam
 	parts := strings.SplitN(externalName, ":", 3)
 	if len(parts) != 3 || parts[1] == "" || parts[2] == "" {
 		return 0, "", "", errors.New(errInvalidExternalName)
@@ -163,8 +163,30 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 	if err := c.kube.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: m.GetNamespace()}, pc); err != nil {
 		return nil, errors.Wrap(err, errGetPC)
 	}
-	pcSpec := pc.Spec
 
+	gfClient, err := c.newGrafanaClient(ctx, m.GetNamespace(), pc.Spec)
+	if err != nil {
+		return nil, err
+	}
+
+	orgID, err := common.ResolveOrgID(ctx, c.kube, cr,
+		cr.Spec.ForProvider.OrgRef,
+		cr.Spec.ForProvider.OrgSelector,
+		cr.Spec.ForProvider.OrgID,
+		pc.Spec.OrgID)
+	if err != nil {
+		return nil, errors.Wrap(err, errResolveOrgRef)
+	}
+
+	folderUID, err := c.resolveFolderUID(ctx, cr)
+	if err != nil {
+		return nil, errors.Wrap(err, errResolveFolderRef)
+	}
+
+	return &external{client: gfClient, kube: c.kube, orgID: orgID, folderUID: folderUID}, nil
+}
+
+func (c *connector) newGrafanaClient(ctx context.Context, namespace string, pcSpec apisv1alpha1.ProviderConfigSpec) (*grafana.Client, error) {
 	cfg := grafana.Config{URL: pcSpec.URL, OrgID: pcSpec.OrgID}
 
 	switch pcSpec.Credentials.AuthType {
@@ -172,11 +194,11 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		if pcSpec.Credentials.BasicAuth == nil {
 			return nil, errors.New("basicAuth is required when authType is basic")
 		}
-		username, err := c.getSecretValue(ctx, m.GetNamespace(), pcSpec.Credentials.BasicAuth.UsernameSecretRef)
+		username, err := c.getSecretValue(ctx, namespace, pcSpec.Credentials.BasicAuth.UsernameSecretRef)
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot get username from secret")
 		}
-		password, err := c.getSecretValue(ctx, m.GetNamespace(), pcSpec.Credentials.BasicAuth.PasswordSecretRef)
+		password, err := c.getSecretValue(ctx, namespace, pcSpec.Credentials.BasicAuth.PasswordSecretRef)
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot get password from secret")
 		}
@@ -186,7 +208,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		if pcSpec.Credentials.TokenAuth == nil {
 			return nil, errors.New("tokenAuth is required when authType is token")
 		}
-		token, err := c.getSecretValue(ctx, m.GetNamespace(), pcSpec.Credentials.TokenAuth.TokenSecretRef)
+		token, err := c.getSecretValue(ctx, namespace, pcSpec.Credentials.TokenAuth.TokenSecretRef)
 		if err != nil {
 			return nil, errors.Wrap(err, "cannot get token from secret")
 		}
@@ -195,28 +217,7 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Errorf("unsupported auth type: %s", pcSpec.Credentials.AuthType)
 	}
 
-	gfClient, err := grafana.NewClient(cfg)
-	if err != nil {
-		return nil, errors.Wrap(err, errNewClient)
-	}
-
-	// Resolve orgID
-	orgID, err := common.ResolveOrgID(ctx, c.kube, cr,
-		cr.Spec.ForProvider.OrgRef,
-		cr.Spec.ForProvider.OrgSelector,
-		cr.Spec.ForProvider.OrgID,
-		pcSpec.OrgID)
-	if err != nil {
-		return nil, errors.Wrap(err, errResolveOrgRef)
-	}
-
-	// Resolve folderUID
-	folderUID, err := c.resolveFolderUID(ctx, cr)
-	if err != nil {
-		return nil, errors.Wrap(err, errResolveFolderRef)
-	}
-
-	return &external{client: gfClient, kube: c.kube, orgID: orgID, folderUID: folderUID}, nil
+	return grafana.NewClient(cfg)
 }
 
 func (c *connector) getSecretValue(ctx context.Context, namespace string, ref xpv1.SecretKeySelector) (string, error) {
@@ -289,25 +290,13 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotRuleGroup)
 	}
 
-	groupName := cr.Spec.ForProvider.Name
-	externalName := meta.GetExternalName(cr)
-
-	// Try to get folderUID and groupName from external name if available
-	if externalName != "" {
-		_, parsedFolderUID, parsedGroupName, err := parseExternalName(externalName)
-		if err == nil {
-			if e.folderUID == "" {
-				e.folderUID = parsedFolderUID
-			}
-			groupName = parsedGroupName
-		}
-	}
-
-	if e.folderUID == "" {
+	groupName, folderUID := e.resolveGroupIdentifiers(cr)
+	if folderUID == "" {
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
+	e.folderUID = folderUID
 
-	rg, err := e.client.GetRuleGroup(ctx, e.folderUID, groupName)
+	rg, err := e.client.GetRuleGroup(ctx, folderUID, groupName)
 	if err != nil {
 		return managed.ExternalObservation{}, errors.Wrap(err, "cannot get rule group")
 	}
@@ -315,13 +304,37 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{ResourceExists: false}, nil
 	}
 
-	// Set external name if not set
+	e.updateExternalNameAndStatus(cr, groupName, rg)
+
+	return managed.ExternalObservation{
+		ResourceExists:   true,
+		ResourceUpToDate: e.isUpToDate(cr, rg),
+	}, nil
+}
+
+func (e *external) resolveGroupIdentifiers(cr *v1alpha1.RuleGroup) (groupName, folderUID string) {
+	groupName = cr.Spec.ForProvider.Name
+	folderUID = e.folderUID
+	externalName := meta.GetExternalName(cr)
+
+	if externalName != "" {
+		_, parsedFolderUID, parsedGroupName, err := parseExternalName(externalName)
+		if err == nil {
+			if folderUID == "" {
+				folderUID = parsedFolderUID
+			}
+			groupName = parsedGroupName
+		}
+	}
+	return groupName, folderUID
+}
+
+func (e *external) updateExternalNameAndStatus(cr *v1alpha1.RuleGroup, groupName string, rg *grafana.AlertRuleGroup) {
 	expectedExtName := formatExternalName(e.orgID, e.folderUID, groupName)
-	if externalName == "" || externalName != expectedExtName {
+	if meta.GetExternalName(cr) != expectedExtName {
 		meta.SetExternalName(cr, expectedExtName)
 	}
 
-	// Update status
 	cr.Status.AtProvider.FolderUID = &e.folderUID
 	cr.Status.AtProvider.OrgID = &e.orgID
 	cr.Status.AtProvider.Rules = make([]v1alpha1.RuleObservation, len(rg.Rules))
@@ -334,13 +347,6 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		}
 	}
 	cr.Status.SetConditions(xpv1.Available())
-
-	isUpToDate := e.isUpToDate(cr, rg)
-
-	return managed.ExternalObservation{
-		ResourceExists:   true,
-		ResourceUpToDate: isUpToDate,
-	}, nil
 }
 
 func (e *external) isUpToDate(cr *v1alpha1.RuleGroup, rg *grafana.AlertRuleGroup) bool {
@@ -454,79 +460,7 @@ func (e *external) Disconnect(ctx context.Context) error {
 func (e *external) buildRuleGroup(cr *v1alpha1.RuleGroup) grafana.AlertRuleGroup {
 	rules := make([]grafana.AlertRule, len(cr.Spec.ForProvider.Rules))
 	for i, r := range cr.Spec.ForProvider.Rules {
-		rule := grafana.AlertRule{
-			Title:       r.Title,
-			Condition:   r.Condition,
-			Labels:      r.Labels,
-			Annotations: r.Annotations,
-		}
-
-		if r.UID != nil {
-			rule.UID = *r.UID
-		}
-		if r.For != nil {
-			rule.For = *r.For
-		} else {
-			rule.For = "5m"
-		}
-		if r.NoDataState != nil {
-			rule.NoDataState = *r.NoDataState
-		} else {
-			rule.NoDataState = "NoData"
-		}
-		if r.ExecErrState != nil {
-			rule.ExecErrState = *r.ExecErrState
-		} else {
-			rule.ExecErrState = "Error"
-		}
-		if r.IsPaused != nil {
-			rule.IsPaused = *r.IsPaused
-		}
-
-		// Build data queries
-		rule.Data = make([]grafana.AlertQuery, len(r.Data))
-		for j, q := range r.Data {
-			// Convert RawExtension to map[string]any
-			var model map[string]any
-			if q.Model.Raw != nil {
-				_ = json.Unmarshal(q.Model.Raw, &model)
-			}
-			query := grafana.AlertQuery{
-				RefID:         q.RefID,
-				DatasourceUID: q.DatasourceUID,
-				Model:         model,
-			}
-			if q.QueryType != nil {
-				query.QueryType = *q.QueryType
-			}
-			if q.RelativeTimeRange != nil {
-				query.RelativeTimeRange = &grafana.AlertTimeRange{
-					From: q.RelativeTimeRange.From,
-					To:   q.RelativeTimeRange.To,
-				}
-			}
-			rule.Data[j] = query
-		}
-
-		// Build notification settings
-		if r.NotificationSettings != nil {
-			rule.NotificationSettings = &grafana.AlertNotification{
-				Receiver:          r.NotificationSettings.Receiver,
-				GroupBy:           r.NotificationSettings.GroupBy,
-				MuteTimeIntervals: r.NotificationSettings.MuteTimeIntervals,
-			}
-			if r.NotificationSettings.GroupWait != nil {
-				rule.NotificationSettings.GroupWait = *r.NotificationSettings.GroupWait
-			}
-			if r.NotificationSettings.GroupInterval != nil {
-				rule.NotificationSettings.GroupInterval = *r.NotificationSettings.GroupInterval
-			}
-			if r.NotificationSettings.RepeatInterval != nil {
-				rule.NotificationSettings.RepeatInterval = *r.NotificationSettings.RepeatInterval
-			}
-		}
-
-		rules[i] = rule
+		rules[i] = buildAlertRule(r)
 	}
 
 	return grafana.AlertRuleGroup{
@@ -534,4 +468,82 @@ func (e *external) buildRuleGroup(cr *v1alpha1.RuleGroup) grafana.AlertRuleGroup
 		Interval: cr.Spec.ForProvider.IntervalSeconds,
 		Rules:    rules,
 	}
+}
+
+func buildAlertRule(r v1alpha1.Rule) grafana.AlertRule {
+	rule := grafana.AlertRule{
+		Title:        r.Title,
+		Condition:    r.Condition,
+		Labels:       r.Labels,
+		Annotations:  r.Annotations,
+		For:          stringPtrOrDefault(r.For, "5m"),
+		NoDataState:  stringPtrOrDefault(r.NoDataState, "NoData"),
+		ExecErrState: stringPtrOrDefault(r.ExecErrState, "Error"),
+	}
+
+	if r.UID != nil {
+		rule.UID = *r.UID
+	}
+	if r.IsPaused != nil {
+		rule.IsPaused = *r.IsPaused
+	}
+
+	rule.Data = buildAlertQueries(r.Data)
+	rule.NotificationSettings = buildNotificationSettings(r.NotificationSettings)
+
+	return rule
+}
+
+func stringPtrOrDefault(ptr *string, defaultVal string) string {
+	if ptr != nil {
+		return *ptr
+	}
+	return defaultVal
+}
+
+func buildAlertQueries(data []v1alpha1.RuleQuery) []grafana.AlertQuery {
+	queries := make([]grafana.AlertQuery, len(data))
+	for i, q := range data {
+		var model map[string]any
+		if q.Model.Raw != nil {
+			_ = json.Unmarshal(q.Model.Raw, &model)
+		}
+		query := grafana.AlertQuery{
+			RefID:         q.RefID,
+			DatasourceUID: q.DatasourceUID,
+			Model:         model,
+		}
+		if q.QueryType != nil {
+			query.QueryType = *q.QueryType
+		}
+		if q.RelativeTimeRange != nil {
+			query.RelativeTimeRange = &grafana.AlertTimeRange{
+				From: q.RelativeTimeRange.From,
+				To:   q.RelativeTimeRange.To,
+			}
+		}
+		queries[i] = query
+	}
+	return queries
+}
+
+func buildNotificationSettings(ns *v1alpha1.NotificationSettings) *grafana.AlertNotification {
+	if ns == nil {
+		return nil
+	}
+	notification := &grafana.AlertNotification{
+		Receiver:          ns.Receiver,
+		GroupBy:           ns.GroupBy,
+		MuteTimeIntervals: ns.MuteTimeIntervals,
+	}
+	if ns.GroupWait != nil {
+		notification.GroupWait = *ns.GroupWait
+	}
+	if ns.GroupInterval != nil {
+		notification.GroupInterval = *ns.GroupInterval
+	}
+	if ns.RepeatInterval != nil {
+		notification.RepeatInterval = *ns.RepeatInterval
+	}
+	return notification
 }

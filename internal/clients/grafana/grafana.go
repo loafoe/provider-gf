@@ -1347,30 +1347,30 @@ type AlertRuleGroup struct {
 
 // AlertRule represents a single alert rule within a rule group.
 type AlertRule struct {
-	UID                  string                 `json:"uid,omitempty"`
-	OrgID                int64                  `json:"orgID,omitempty"`
-	FolderUID            string                 `json:"folderUID,omitempty"`
-	RuleGroup            string                 `json:"ruleGroup,omitempty"`
-	Title                string                 `json:"title"`
-	Condition            string                 `json:"condition"`
-	Data                 []AlertQuery           `json:"data"`
-	For                  string                 `json:"for,omitempty"`
-	NoDataState          string                 `json:"noDataState,omitempty"`
-	ExecErrState         string                 `json:"execErrState,omitempty"`
-	Labels               map[string]string      `json:"labels,omitempty"`
-	Annotations          map[string]string      `json:"annotations,omitempty"`
-	IsPaused             bool                   `json:"isPaused,omitempty"`
-	NotificationSettings *AlertNotification     `json:"notification_settings,omitempty"`
-	Provenance           string                 `json:"provenance,omitempty"`
+	UID                  string             `json:"uid,omitempty"`
+	OrgID                int64              `json:"orgID,omitempty"`
+	FolderUID            string             `json:"folderUID,omitempty"`
+	RuleGroup            string             `json:"ruleGroup,omitempty"`
+	Title                string             `json:"title"`
+	Condition            string             `json:"condition"`
+	Data                 []AlertQuery       `json:"data"`
+	For                  string             `json:"for,omitempty"`
+	NoDataState          string             `json:"noDataState,omitempty"`
+	ExecErrState         string             `json:"execErrState,omitempty"`
+	Labels               map[string]string  `json:"labels,omitempty"`
+	Annotations          map[string]string  `json:"annotations,omitempty"`
+	IsPaused             bool               `json:"isPaused,omitempty"`
+	NotificationSettings *AlertNotification `json:"notification_settings,omitempty"`
+	Provenance           string             `json:"provenance,omitempty"`
 }
 
 // AlertQuery represents a query within an alert rule.
 type AlertQuery struct {
-	RefID             string            `json:"refId"`
-	DatasourceUID     string            `json:"datasourceUid"`
-	QueryType         string            `json:"queryType,omitempty"`
-	RelativeTimeRange *AlertTimeRange   `json:"relativeTimeRange,omitempty"`
-	Model             map[string]any    `json:"model"`
+	RefID             string          `json:"refId"`
+	DatasourceUID     string          `json:"datasourceUid"`
+	QueryType         string          `json:"queryType,omitempty"`
+	RelativeTimeRange *AlertTimeRange `json:"relativeTimeRange,omitempty"`
+	Model             map[string]any  `json:"model"`
 }
 
 // AlertTimeRange represents a relative time range for a query.
