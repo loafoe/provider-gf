@@ -66,16 +66,6 @@ func parseExternalName(externalName string) (int64, string, error) { //nolint:un
 	return orgID, parts[1], nil
 }
 
-// SetupGated adds a controller that reconciles Folder managed resources.
-func SetupGated(mgr ctrl.Manager, o controller.Options) error {
-	o.Gate.Register(func() {
-		if err := Setup(mgr, o); err != nil {
-			panic(errors.Wrap(err, "cannot setup Folder controller"))
-		}
-	}, v1alpha1.FolderGroupVersionKind)
-	return nil
-}
-
 // Setup adds a controller that reconciles Folder managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.FolderGroupKind)

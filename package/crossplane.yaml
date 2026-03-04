@@ -9,5 +9,4 @@ metadata:
     meta.crossplane.io/description: |
       A native Crossplane provider for Grafana.
 spec:
-  capabilities:
-    - safe-start
+  capabilities: []

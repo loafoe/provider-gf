@@ -32,20 +32,19 @@ import (
 	"github.com/crossplane/provider-gf/internal/controller/rulegroup"
 )
 
-// SetupGated creates all Grafana controllers with safe-start support and adds them to
-// the supplied manager.
-func SetupGated(mgr ctrl.Manager, o controller.Options) error {
+// Setup creates all Grafana controllers and adds them to the supplied manager.
+func Setup(mgr ctrl.Manager, o controller.Options) error {
 	for _, setup := range []func(ctrl.Manager, controller.Options) error{
 		config.Setup,
-		contactpoint.SetupGated,
-		dashboard.SetupGated,
-		dashboardpermission.SetupGated,
-		datasource.SetupGated,
-		folder.SetupGated,
-		folderpermission.SetupGated,
-		librarypanel.SetupGated,
-		organization.SetupGated,
-		rulegroup.SetupGated,
+		contactpoint.Setup,
+		dashboard.Setup,
+		dashboardpermission.Setup,
+		datasource.Setup,
+		folder.Setup,
+		folderpermission.Setup,
+		librarypanel.Setup,
+		organization.Setup,
+		rulegroup.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err

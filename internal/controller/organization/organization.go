@@ -51,16 +51,6 @@ const (
 	roleViewer = "Viewer"
 )
 
-// SetupGated adds a controller that reconciles Organization managed resources.
-func SetupGated(mgr ctrl.Manager, o controller.Options) error {
-	o.Gate.Register(func() {
-		if err := Setup(mgr, o); err != nil {
-			panic(errors.Wrap(err, "cannot setup Organization controller"))
-		}
-	}, v1alpha1.OrganizationGroupVersionKind)
-	return nil
-}
-
 // Setup adds a controller that reconciles Organization managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.OrganizationGroupKind)

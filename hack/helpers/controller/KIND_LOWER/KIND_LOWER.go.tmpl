@@ -55,16 +55,7 @@ var (
 	newNoOpService = func(_ []byte) (interface{}, error) { return &NoOpService{}, nil }
 )
 
-// SetupGated adds a controller that reconciles {{ .Env.KIND }} managed resources with safe-start support.
-func SetupGated(mgr ctrl.Manager, o controller.Options) error {
-	o.Gate.Register(func() {
-		if err := Setup(mgr, o); err != nil {
-			panic(errors.Wrap(err, "cannot setup {{ .Env.KIND }} controller"))
-		}
-	}, v1alpha1.{{ .Env.KIND }}GroupVersionKind)
-	return nil
-}
-
+// Setup adds a controller that reconciles {{ .Env.KIND }} managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.{{ .Env.KIND }}GroupKind)
 

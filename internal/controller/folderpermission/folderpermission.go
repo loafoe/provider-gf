@@ -91,16 +91,6 @@ func ExtractFolderUID() reference.ExtractValueFn {
 	}
 }
 
-// SetupGated adds a controller that reconciles FolderPermission managed resources.
-func SetupGated(mgr ctrl.Manager, o controller.Options) error {
-	o.Gate.Register(func() {
-		if err := Setup(mgr, o); err != nil {
-			panic(errors.Wrap(err, "cannot setup FolderPermission controller"))
-		}
-	}, v1alpha1.FolderPermissionGroupVersionKind)
-	return nil
-}
-
 // Setup adds a controller that reconciles FolderPermission managed resources.
 func Setup(mgr ctrl.Manager, o controller.Options) error {
 	name := managed.ControllerName(v1alpha1.FolderPermissionGroupKind)
