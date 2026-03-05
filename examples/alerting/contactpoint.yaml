@@ -63,6 +63,9 @@ spec:
         key: integrationKey
       severity: critical
       summary: "{{ .CommonLabels.alertname }}"
+      details:
+        environment: production
+        team: platform
       disableResolveMessage: false
 
 # Example ContactPoint - Webhook

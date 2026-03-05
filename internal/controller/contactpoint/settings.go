@@ -282,6 +282,9 @@ func (e *external) buildPagerDutySettings(ctx context.Context, cfg *v1alpha1.Pag
 	if cfg.URL != nil {
 		settings["url"] = *cfg.URL
 	}
+	if len(cfg.Details) > 0 {
+		settings["details"] = cfg.Details
+	}
 	return "pagerduty", settings, nil
 }
 

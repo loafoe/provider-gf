@@ -412,6 +412,13 @@ spec:
                       component:
                         description: Component is the component name.
                         type: string
+                      details:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          Details is a set of arbitrary key/value pairs that provide further detail
+                          about the incident.
+                        type: object
                       disableResolveMessage:
                         description: DisableResolveMessage disables sending resolve
                           messages.

@@ -293,6 +293,11 @@ type PagerDutyConfig struct {
 	// +optional
 	URL *string `json:"url,omitempty"`
 
+	// Details is a set of arbitrary key/value pairs that provide further detail
+	// about the incident.
+	// +optional
+	Details map[string]string `json:"details,omitempty"`
+
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
