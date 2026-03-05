@@ -135,6 +135,7 @@ func (e *external) buildAlertmanagerSettings(ctx context.Context, cfg *v1alpha1.
 		}
 		settings["basicAuthPassword"] = val
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "alertmanager", settings, nil
 }
 
@@ -156,6 +157,7 @@ func (e *external) buildDiscordSettings(ctx context.Context, cfg *v1alpha1.Disco
 	if cfg.UseDiscordUsername != nil {
 		settings["use_discord_username"] = *cfg.UseDiscordUsername
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "discord", settings, nil
 }
 
@@ -170,6 +172,7 @@ func (e *external) buildEmailSettings(cfg *v1alpha1.EmailConfig) (string, map[st
 	if cfg.SingleEmail != nil {
 		settings["singleEmail"] = *cfg.SingleEmail
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "email", settings, nil
 }
 
@@ -212,6 +215,25 @@ func (e *external) buildJiraSettings(ctx context.Context, cfg *v1alpha1.JiraConf
 	if len(cfg.Labels) > 0 {
 		settings["labels"] = strings.Join(cfg.Labels, ",")
 	}
+	if cfg.DedupKeyField != nil {
+		settings["dedupKeyField"] = *cfg.DedupKeyField
+	}
+	if len(cfg.Fields) > 0 {
+		settings["fields"] = cfg.Fields
+	}
+	if cfg.ReopenDuration != nil {
+		settings["reopenDuration"] = *cfg.ReopenDuration
+	}
+	if cfg.ReopenTransition != nil {
+		settings["reopenTransition"] = *cfg.ReopenTransition
+	}
+	if cfg.ResolveTransition != nil {
+		settings["resolveTransition"] = *cfg.ResolveTransition
+	}
+	if cfg.WontFixResolution != nil {
+		settings["wontFixResolution"] = *cfg.WontFixResolution
+	}
+	mergeSettings(settings, cfg.Settings)
 	return "jira", settings, nil
 }
 
@@ -246,6 +268,7 @@ func (e *external) buildKafkaSettings(ctx context.Context, cfg *v1alpha1.KafkaCo
 	if cfg.Details != nil {
 		settings["details"] = *cfg.Details
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "kafka", settings, nil
 }
 
@@ -285,6 +308,7 @@ func (e *external) buildPagerDutySettings(ctx context.Context, cfg *v1alpha1.Pag
 	if len(cfg.Details) > 0 {
 		settings["details"] = cfg.Details
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "pagerduty", settings, nil
 }
 
@@ -303,6 +327,7 @@ func (e *external) buildTeamsSettings(ctx context.Context, cfg *v1alpha1.TeamsCo
 	if cfg.SectionTitle != nil {
 		settings["sectiontitle"] = *cfg.SectionTitle
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "teams", settings, nil
 }
 
@@ -352,6 +377,10 @@ func (e *external) buildSlackSettings(ctx context.Context, cfg *v1alpha1.SlackCo
 	if cfg.EndpointURL != nil {
 		settings["endpointUrl"] = *cfg.EndpointURL
 	}
+	if cfg.Color != nil {
+		settings["color"] = *cfg.Color
+	}
+	mergeSettings(settings, cfg.Settings)
 	return "slack", settings, nil
 }
 
@@ -389,6 +418,7 @@ func (e *external) buildSNSSettings(ctx context.Context, cfg *v1alpha1.SNSConfig
 	if cfg.MessageFormat != nil {
 		settings["messageFormat"] = *cfg.MessageFormat
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "sns", settings, nil
 }
 
@@ -419,6 +449,7 @@ func (e *external) buildTelegramSettings(ctx context.Context, cfg *v1alpha1.Tele
 	if cfg.MessageThreadID != nil {
 		settings["message_thread_id"] = *cfg.MessageThreadID
 	}
+	mergeSettings(settings, cfg.Settings)
 	return "telegram", settings, nil
 }
 
@@ -460,7 +491,18 @@ func (e *external) buildWebhookSettings(ctx context.Context, cfg *v1alpha1.Webho
 	if cfg.Message != nil {
 		settings["message"] = *cfg.Message
 	}
+	if len(cfg.Headers) > 0 {
+		settings["headers"] = cfg.Headers
+	}
+	mergeSettings(settings, cfg.Settings)
 	return "webhook", settings, nil
+}
+
+// mergeSettings merges custom settings into the settings map.
+func mergeSettings(settings map[string]any, custom map[string]string) {
+	for k, v := range custom {
+		settings[k] = v
+	}
 }
 
 func (e *external) getSecretValue(ctx context.Context, namespace string, ref xpv1.SecretKeySelector) (string, error) {

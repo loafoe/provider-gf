@@ -112,6 +112,10 @@ type AlertmanagerConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // DiscordConfig configures a Discord contact point.
@@ -139,6 +143,10 @@ type DiscordConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // EmailConfig configures an Email contact point.
@@ -163,6 +171,10 @@ type EmailConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // JiraConfig configures a Jira contact point.
@@ -207,9 +219,37 @@ type JiraConfig struct {
 	// +optional
 	Labels []string `json:"labels,omitempty"`
 
+	// DedupKeyField is the field to use for deduplication of issues.
+	// +optional
+	DedupKeyField *string `json:"dedupKeyField,omitempty"`
+
+	// Fields is a map of custom field IDs to their values.
+	// +optional
+	Fields map[string]string `json:"fields,omitempty"`
+
+	// ReopenDuration is the duration after which to reopen a resolved issue (e.g., "30d").
+	// +optional
+	ReopenDuration *string `json:"reopenDuration,omitempty"`
+
+	// ReopenTransition is the transition to use when reopening an issue.
+	// +optional
+	ReopenTransition *string `json:"reopenTransition,omitempty"`
+
+	// ResolveTransition is the transition to use when resolving an issue.
+	// +optional
+	ResolveTransition *string `json:"resolveTransition,omitempty"`
+
+	// WontFixResolution is the resolution to use when marking an issue as won't fix.
+	// +optional
+	WontFixResolution *string `json:"wontFixResolution,omitempty"`
+
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // KafkaConfig configures a Kafka contact point.
@@ -249,6 +289,10 @@ type KafkaConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // PagerDutyConfig configures a PagerDuty contact point.
@@ -301,6 +345,10 @@ type PagerDutyConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // TeamsConfig configures a Microsoft Teams contact point.
@@ -324,6 +372,10 @@ type TeamsConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // SlackConfig configures a Slack contact point.
@@ -376,9 +428,17 @@ type SlackConfig struct {
 	// +optional
 	EndpointURL *string `json:"endpointUrl,omitempty"`
 
+	// Color is the color of the message attachment.
+	// +optional
+	Color *string `json:"color,omitempty"`
+
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // SNSConfig configures an AWS SNS contact point.
@@ -422,6 +482,10 @@ type SNSConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // TelegramConfig configures a Telegram contact point.
@@ -461,6 +525,10 @@ type TelegramConfig struct {
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // WebhookConfig configures a Webhook contact point.
@@ -502,9 +570,17 @@ type WebhookConfig struct {
 	// +optional
 	Message *string `json:"message,omitempty"`
 
+	// Headers is a map of custom HTTP headers to attach to the webhook request.
+	// +optional
+	Headers map[string]string `json:"headers,omitempty"`
+
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
+
+	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
+	// +optional
+	Settings map[string]string `json:"settings,omitempty"`
 }
 
 // ContactPointObservation are the observable fields of a ContactPoint.

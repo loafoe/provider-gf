@@ -88,6 +88,12 @@ spec:
                         description: DisableResolveMessage disables sending resolve
                           messages.
                         type: boolean
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       url:
                         description: URL is the Alertmanager webhook URL.
                         type: string
@@ -112,6 +118,12 @@ spec:
                       message:
                         description: Message is the message content.
                         type: string
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       title:
                         description: Title is the message title.
                         type: string
@@ -154,6 +166,12 @@ spec:
                       message:
                         description: Message is the email body.
                         type: string
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       singleEmail:
                         description: SingleEmail sends a single email to all addresses.
                         type: boolean
@@ -186,6 +204,10 @@ spec:
                       apiUrl:
                         description: APIURL is the Jira API URL.
                         type: string
+                      dedupKeyField:
+                        description: DedupKeyField is the field to use for deduplication
+                          of issues.
+                        type: string
                       description:
                         description: Description is the issue description template.
                         type: string
@@ -193,6 +215,12 @@ spec:
                         description: DisableResolveMessage disables sending resolve
                           messages.
                         type: boolean
+                      fields:
+                        additionalProperties:
+                          type: string
+                        description: Fields is a map of custom field IDs to their
+                          values.
+                        type: object
                       issueType:
                         description: IssueType is the Jira issue type (e.g., "Bug").
                         type: string
@@ -224,6 +252,24 @@ spec:
                       project:
                         description: Project is the Jira project key.
                         type: string
+                      reopenDuration:
+                        description: ReopenDuration is the duration after which to
+                          reopen a resolved issue (e.g., "30d").
+                        type: string
+                      reopenTransition:
+                        description: ReopenTransition is the transition to use when
+                          reopening an issue.
+                        type: string
+                      resolveTransition:
+                        description: ResolveTransition is the transition to use when
+                          resolving an issue.
+                        type: string
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       summary:
                         description: Summary is the issue summary template.
                         type: string
@@ -244,6 +290,10 @@ spec:
                         - name
                         - namespace
                         type: object
+                      wontFixResolution:
+                        description: WontFixResolution is the resolution to use when
+                          marking an issue as won't fix.
+                        type: string
                     required:
                     - apiUrl
                     - issueType
@@ -302,6 +352,12 @@ spec:
                         - key
                         - name
                         - namespace
+                        type: object
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
                         type: object
                       topic:
                         description: Topic is the Kafka topic.
@@ -444,6 +500,12 @@ spec:
                         - name
                         - namespace
                         type: object
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       severity:
                         description: Severity is the alert severity (critical, error,
                           warning, info).
@@ -463,6 +525,9 @@ spec:
                   slack:
                     description: Slack configures a Slack contact point.
                     properties:
+                      color:
+                        description: Color is the color of the message attachment.
+                        type: string
                       disableResolveMessage:
                         description: DisableResolveMessage disables sending resolve
                           messages.
@@ -491,6 +556,12 @@ spec:
                       recipient:
                         description: Recipient is the Slack channel or user.
                         type: string
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       text:
                         description: Text is the message text.
                         type: string
@@ -594,6 +665,12 @@ spec:
                         - name
                         - namespace
                         type: object
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       subject:
                         description: Subject is the message subject.
                         type: string
@@ -616,6 +693,12 @@ spec:
                       sectionTitle:
                         description: SectionTitle is the message section title.
                         type: string
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       title:
                         description: Title is the message title.
                         type: string
@@ -669,6 +752,12 @@ spec:
                       protectContent:
                         description: ProtectContent prevents message forwarding.
                         type: boolean
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       tokenSecretRef:
                         description: TokenSecretRef is the Telegram bot token.
                         properties:
@@ -740,6 +829,12 @@ spec:
                         description: DisableResolveMessage disables sending resolve
                           messages.
                         type: boolean
+                      headers:
+                        additionalProperties:
+                          type: string
+                        description: Headers is a map of custom HTTP headers to attach
+                          to the webhook request.
+                        type: object
                       httpMethod:
                         description: HTTPMethod is the HTTP method to use.
                         enum:
@@ -753,6 +848,12 @@ spec:
                       message:
                         description: Message is the message body.
                         type: string
+                      settings:
+                        additionalProperties:
+                          type: string
+                        description: Settings is a map of arbitrary key/value pairs
+                          for custom notifier settings.
+                        type: object
                       title:
                         description: Title is the message title.
                         type: string
