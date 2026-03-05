@@ -1475,3 +1475,105 @@ func (c *Client) DeleteRuleGroup(ctx context.Context, folderUID, groupName strin
 
 	return nil
 }
+
+// NotificationPolicyTree represents the entire notification policy tree in Grafana.
+type NotificationPolicyTree struct {
+	Receiver       string              `json:"receiver"`
+	GroupBy        []string            `json:"group_by,omitempty"`
+	GroupWait      string              `json:"group_wait,omitempty"`
+	GroupInterval  string              `json:"group_interval,omitempty"`
+	RepeatInterval string              `json:"repeat_interval,omitempty"`
+	Routes         []NotificationRoute `json:"routes,omitempty"`
+}
+
+// NotificationRoute represents a nested routing policy.
+type NotificationRoute struct {
+	Receiver            string              `json:"receiver,omitempty"`
+	GroupBy             []string            `json:"group_by,omitempty"`
+	GroupWait           string              `json:"group_wait,omitempty"`
+	GroupInterval       string              `json:"group_interval,omitempty"`
+	RepeatInterval      string              `json:"repeat_interval,omitempty"`
+	Continue            bool                `json:"continue,omitempty"`
+	ObjectMatchers      [][]string          `json:"object_matchers,omitempty"`
+	MuteTimeIntervals   []string            `json:"mute_time_intervals,omitempty"`
+	ActiveTimeIntervals []string            `json:"active_time_intervals,omitempty"`
+	Routes              []NotificationRoute `json:"routes,omitempty"`
+}
+
+// GetNotificationPolicy retrieves the notification policy tree.
+func (c *Client) GetNotificationPolicy(ctx context.Context) (*NotificationPolicyTree, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, "/api/v1/provisioning/policies", nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get notification policy: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get notification policy: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var result NotificationPolicyTree
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// SetNotificationPolicy sets the notification policy tree.
+func (c *Client) SetNotificationPolicy(ctx context.Context, policy NotificationPolicyTree, disableProvenance bool) error {
+	httpReq, err := c.newRequest(ctx, http.MethodPut, "/api/v1/provisioning/policies", policy)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if disableProvenance {
+		httpReq.Header.Set("X-Disable-Provenance", "true")
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("failed to set notification policy: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to set notification policy: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// ResetNotificationPolicy resets the notification policy to the default.
+func (c *Client) ResetNotificationPolicy(ctx context.Context) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, "/api/v1/provisioning/policies", nil)
+	if err != nil {
+		return fmt.Errorf("failed to reset notification policy: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to reset notification policy: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}

@@ -1,0 +1,100 @@
+# Example NotificationPolicy
+# This manages the entire notification policy tree for a Grafana organization.
+# There can only be one NotificationPolicy per organization.
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: NotificationPolicy
+metadata:
+  name: default-policy
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    # The default contact point for all alerts that don't match any route
+    contactPointRef:
+      name: default-email
+    # Group alerts by alertname and severity
+    groupBy:
+      - alertname
+      - severity
+    # Wait 30s before sending the first notification for a new group
+    groupWait: "30s"
+    # Wait at least 5m before sending a notification about new alerts added to a group
+    groupInterval: "5m"
+    # Wait 4h before re-sending a notification for the same group
+    repeatInterval: "4h"
+    # Allow editing in Grafana UI
+    disableProvenance: true
+    # Nested routing policies
+    policy:
+      # Route critical alerts to PagerDuty
+      - matchers:
+          - label: severity
+            match: "="
+            value: critical
+        contactPoint: "pagerduty-critical"
+        groupWait: "10s"
+        repeatInterval: "1h"
+        continue: false
+      # Route warning alerts to Slack
+      - matchers:
+          - label: severity
+            match: "="
+            value: warning
+        contactPoint: "slack-warnings"
+        groupWait: "30s"
+        repeatInterval: "2h"
+        continue: true
+
+# Example with ContactPoint reference
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: NotificationPolicy
+metadata:
+  name: team-routing-policy
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    # Reference a ContactPoint resource
+    contactPointRef:
+      name: default-email
+    groupBy:
+      - alertname
+      - team
+    groupWait: "30s"
+    groupInterval: "5m"
+    repeatInterval: "4h"
+    disableProvenance: true
+    policy:
+      # Route platform team alerts
+      - matchers:
+          - label: team
+            match: "="
+            value: platform
+        contactPointRef:
+          name: platform-slack
+        groupBy:
+          - alertname
+        # Nested routing for platform team
+        policy:
+          # Critical platform alerts go to PagerDuty
+          - matchers:
+              - label: severity
+                match: "="
+                value: critical
+            contactPointRef:
+              name: platform-pagerduty
+            repeatInterval: "30m"
+      # Route database team alerts
+      - matchers:
+          - label: team
+            match: "="
+            value: database
+        contactPointRef:
+          name: database-slack
+        continue: true

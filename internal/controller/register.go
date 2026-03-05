@@ -28,6 +28,7 @@ import (
 	"github.com/crossplane/provider-gf/internal/controller/folder"
 	"github.com/crossplane/provider-gf/internal/controller/folderpermission"
 	"github.com/crossplane/provider-gf/internal/controller/librarypanel"
+	"github.com/crossplane/provider-gf/internal/controller/notificationpolicy"
 	"github.com/crossplane/provider-gf/internal/controller/organization"
 	"github.com/crossplane/provider-gf/internal/controller/rulegroup"
 )
@@ -43,6 +44,7 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		folder.Setup,
 		folderpermission.Setup,
 		librarypanel.Setup,
+		notificationpolicy.Setup,
 		organization.Setup,
 		rulegroup.Setup,
 	} {
