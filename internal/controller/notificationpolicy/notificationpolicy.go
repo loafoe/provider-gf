@@ -418,20 +418,7 @@ func (e *external) buildRoute(ctx context.Context, cr *v1alpha1.NotificationPoli
 		route.Receiver = cpName
 	}
 
-	if pr.Continue != nil {
-		route.Continue = *pr.Continue
-	}
-	if pr.GroupWait != nil {
-		route.GroupWait = *pr.GroupWait
-	}
-	if pr.GroupInterval != nil {
-		route.GroupInterval = *pr.GroupInterval
-	}
-	if pr.RepeatInterval != nil {
-		route.RepeatInterval = *pr.RepeatInterval
-	}
-
-	// Build matchers
+	setRouteIntervals(&route, pr.Continue, pr.GroupWait, pr.GroupInterval, pr.RepeatInterval)
 	route.ObjectMatchers = buildMatchers(pr.Matchers)
 
 	// Build nested routes (level 2)
@@ -474,20 +461,7 @@ func (e *external) buildNestedRoute(ctx context.Context, cr *v1alpha1.Notificati
 		route.Receiver = cpName
 	}
 
-	if pr.Continue != nil {
-		route.Continue = *pr.Continue
-	}
-	if pr.GroupWait != nil {
-		route.GroupWait = *pr.GroupWait
-	}
-	if pr.GroupInterval != nil {
-		route.GroupInterval = *pr.GroupInterval
-	}
-	if pr.RepeatInterval != nil {
-		route.RepeatInterval = *pr.RepeatInterval
-	}
-
-	// Build matchers
+	setRouteIntervals(&route, pr.Continue, pr.GroupWait, pr.GroupInterval, pr.RepeatInterval)
 	route.ObjectMatchers = buildMatchers(pr.Matchers)
 
 	// Build leaf routes (level 3)
@@ -530,20 +504,7 @@ func (e *external) buildLeafRoute(ctx context.Context, cr *v1alpha1.Notification
 		route.Receiver = cpName
 	}
 
-	if pr.Continue != nil {
-		route.Continue = *pr.Continue
-	}
-	if pr.GroupWait != nil {
-		route.GroupWait = *pr.GroupWait
-	}
-	if pr.GroupInterval != nil {
-		route.GroupInterval = *pr.GroupInterval
-	}
-	if pr.RepeatInterval != nil {
-		route.RepeatInterval = *pr.RepeatInterval
-	}
-
-	// Build matchers
+	setRouteIntervals(&route, pr.Continue, pr.GroupWait, pr.GroupInterval, pr.RepeatInterval)
 	route.ObjectMatchers = buildMatchers(pr.Matchers)
 
 	return route, nil
@@ -555,6 +516,21 @@ func buildMatchers(matchers []v1alpha1.PolicyMatcher) [][]string {
 		result[i] = []string{m.Label, m.Match, m.Value}
 	}
 	return result
+}
+
+func setRouteIntervals(route *grafana.NotificationRoute, cont *bool, groupWait, groupInterval, repeatInterval *string) {
+	if cont != nil {
+		route.Continue = *cont
+	}
+	if groupWait != nil {
+		route.GroupWait = *groupWait
+	}
+	if groupInterval != nil {
+		route.GroupInterval = *groupInterval
+	}
+	if repeatInterval != nil {
+		route.RepeatInterval = *repeatInterval
+	}
 }
 
 func (e *external) resolveContactPointName(ctx context.Context, cr *v1alpha1.NotificationPolicy, directValue *string, ref *xpv1.Reference, selector *xpv1.Selector) (string, error) {
