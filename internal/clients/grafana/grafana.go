@@ -226,6 +226,250 @@ func (c *Client) DeleteDashboardByUID(ctx context.Context, uid string) error {
 	return nil
 }
 
+// ============================================================================
+// Dashboard V2 API (Kubernetes-style API)
+// Endpoint: /apis/dashboard.grafana.app/v1beta1/namespaces/:namespace/dashboards
+// ============================================================================
+
+// DashboardV2Metadata represents metadata for a K8s-style dashboard resource.
+type DashboardV2Metadata struct {
+	Name              string            `json:"name,omitempty"`
+	Namespace         string            `json:"namespace,omitempty"`
+	UID               string            `json:"uid,omitempty"`
+	ResourceVersion   string            `json:"resourceVersion,omitempty"`
+	Generation        int64             `json:"generation,omitempty"`
+	CreationTimestamp string            `json:"creationTimestamp,omitempty"`
+	Labels            map[string]string `json:"labels,omitempty"`
+	Annotations       map[string]string `json:"annotations,omitempty"`
+}
+
+// DashboardV2 represents a K8s-style dashboard resource.
+type DashboardV2 struct {
+	APIVersion string              `json:"apiVersion"`
+	Kind       string              `json:"kind"`
+	Metadata   DashboardV2Metadata `json:"metadata"`
+	Spec       map[string]any      `json:"spec"`
+	Status     map[string]any      `json:"status,omitempty"`
+}
+
+// DashboardV2Response wraps the response from the V2 API which includes the full resource.
+type DashboardV2Response struct {
+	DashboardV2
+}
+
+// Annotation keys used by Grafana Dashboard V2 API.
+const (
+	DashboardV2AnnotationFolder  = "grafana.app/folder"
+	DashboardV2AnnotationMessage = "grafana.app/message"
+
+	// DefaultNamespace is the namespace used for org ID 1 in OSS/On-Premise Grafana.
+	DefaultNamespace = "default"
+)
+
+// OrgIDToNamespace converts a Grafana organization ID to the API namespace.
+// For OSS/On-Premise Grafana:
+//   - Org ID 1 → "default"
+//   - Org ID > 1 → "org-<id>" (e.g., org 42 → "org-42")
+func OrgIDToNamespace(orgID int64) string {
+	if orgID <= 1 {
+		return DefaultNamespace
+	}
+	return fmt.Sprintf("org-%d", orgID)
+}
+
+// IsDashboardV2Format checks if the given JSON is in the K8s-style Dashboard V2 format.
+// It returns true if the JSON has an apiVersion starting with "dashboard.grafana.app/".
+func IsDashboardV2Format(configJSON []byte) bool {
+	var partial struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+	}
+	if err := json.Unmarshal(configJSON, &partial); err != nil {
+		return false
+	}
+	return strings.HasPrefix(partial.APIVersion, "dashboard.grafana.app/") && partial.Kind == "Dashboard"
+}
+
+// GetDashboardV2APIVersion extracts the API version from the dashboard's apiVersion field.
+// Returns the version part (e.g., "v1beta1" from "dashboard.grafana.app/v1beta1").
+// Defaults to "v1beta1" if not found or invalid.
+func GetDashboardV2APIVersion(dash *DashboardV2) string {
+	if dash.APIVersion == "" {
+		return "v1beta1"
+	}
+	parts := strings.SplitN(dash.APIVersion, "/", 2)
+	if len(parts) != 2 || parts[1] == "" {
+		return "v1beta1"
+	}
+	return parts[1]
+}
+
+// ParseDashboardV2 parses a K8s-style dashboard JSON into a DashboardV2 struct.
+func ParseDashboardV2(configJSON []byte) (*DashboardV2, error) {
+	var dash DashboardV2
+	if err := json.Unmarshal(configJSON, &dash); err != nil {
+		return nil, fmt.Errorf("failed to parse dashboard v2: %w", err)
+	}
+	return &dash, nil
+}
+
+// GetDashboardV2FolderUID extracts the folder UID from a V2 dashboard's annotations.
+func GetDashboardV2FolderUID(dash *DashboardV2) string {
+	if dash.Metadata.Annotations == nil {
+		return ""
+	}
+	return dash.Metadata.Annotations[DashboardV2AnnotationFolder]
+}
+
+// GetDashboardV2UID extracts the UID from a V2 dashboard.
+// It first checks metadata.uid, then falls back to metadata.name.
+func GetDashboardV2UID(dash *DashboardV2) string {
+	if dash.Metadata.UID != "" {
+		return dash.Metadata.UID
+	}
+	return dash.Metadata.Name
+}
+
+// CreateDashboardV2 creates a dashboard using the K8s-style V2 API.
+func (c *Client) CreateDashboardV2(ctx context.Context, dash *DashboardV2) (*DashboardV2Response, error) {
+	namespace := dash.Metadata.Namespace
+	if namespace == "" {
+		namespace = DefaultNamespace
+	}
+
+	apiVersion := GetDashboardV2APIVersion(dash)
+	path := fmt.Sprintf("/apis/dashboard.grafana.app/%s/namespaces/%s/dashboards", apiVersion, namespace)
+
+	resp, err := c.doRequest(ctx, http.MethodPost, path, dash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dashboard v2: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("failed to create dashboard v2: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var dashResp DashboardV2Response
+	if err := json.Unmarshal(body, &dashResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &dashResp, nil
+}
+
+// UpdateDashboardV2 updates a dashboard using the K8s-style V2 API.
+func (c *Client) UpdateDashboardV2(ctx context.Context, dash *DashboardV2) (*DashboardV2Response, error) {
+	namespace := dash.Metadata.Namespace
+	if namespace == "" {
+		namespace = DefaultNamespace
+	}
+
+	name := dash.Metadata.Name
+	if name == "" {
+		return nil, fmt.Errorf("dashboard metadata.name is required for update")
+	}
+
+	apiVersion := GetDashboardV2APIVersion(dash)
+	path := fmt.Sprintf("/apis/dashboard.grafana.app/%s/namespaces/%s/dashboards/%s", apiVersion, namespace, name)
+
+	resp, err := c.doRequest(ctx, http.MethodPut, path, dash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update dashboard v2: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to update dashboard v2: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var dashResp DashboardV2Response
+	if err := json.Unmarshal(body, &dashResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &dashResp, nil
+}
+
+// GetDashboardV2ByName gets a dashboard by name using the K8s-style V2 API.
+// apiVersion should be the version string (e.g., "v1beta1", "v2beta1").
+func (c *Client) GetDashboardV2ByName(ctx context.Context, apiVersion, namespace, name string) (*DashboardV2Response, error) {
+	if namespace == "" {
+		namespace = DefaultNamespace
+	}
+	if apiVersion == "" {
+		apiVersion = "v1beta1"
+	}
+
+	path := fmt.Sprintf("/apis/dashboard.grafana.app/%s/namespaces/%s/dashboards/%s", apiVersion, namespace, name)
+
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get dashboard v2: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Dashboard doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get dashboard v2: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	var dashResp DashboardV2Response
+	if err := json.Unmarshal(body, &dashResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &dashResp, nil
+}
+
+// DeleteDashboardV2ByName deletes a dashboard by name using the K8s-style V2 API.
+// apiVersion should be the version string (e.g., "v1beta1", "v2beta1").
+func (c *Client) DeleteDashboardV2ByName(ctx context.Context, apiVersion, namespace, name string) error {
+	if namespace == "" {
+		namespace = DefaultNamespace
+	}
+	if apiVersion == "" {
+		apiVersion = "v1beta1"
+	}
+
+	path := fmt.Sprintf("/apis/dashboard.grafana.app/%s/namespaces/%s/dashboards/%s", apiVersion, namespace, name)
+
+	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete dashboard v2: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		return fmt.Errorf("failed to delete dashboard v2: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
 // DataSource represents a Grafana data source.
 type DataSource struct {
 	ID              int64          `json:"id,omitempty"`

@@ -44,13 +44,13 @@ import (
 )
 
 const (
-	errNotDashboard        = "managed resource is not a Dashboard custom resource"
-	errTrackPCUsage        = "cannot track ProviderConfig usage"
-	errGetPC               = "cannot get ProviderConfig"
-	errGetCreds            = "cannot get credentials"
-	errNewClient           = "cannot create Grafana client"
-	errInvalidExternalName = "invalid external name format, expected <orgId>:<uid>"
-	errResolveOrgRef       = "cannot resolve organization reference"
+	errNotDashboard          = "managed resource is not a Dashboard custom resource"
+	errTrackPCUsage          = "cannot track ProviderConfig usage"
+	errGetPC                 = "cannot get ProviderConfig"
+	errNewClient             = "cannot create Grafana client"
+	errInvalidExternalName   = "invalid external name format, expected <orgId>:<uid>"
+	errInvalidExternalNameV2 = "invalid external name format for v2, expected <orgId>:<apiVersion>:<name>"
+	errResolveOrgRef         = "cannot resolve organization reference"
 )
 
 // formatExternalName creates an external name in the format <orgId>:<uid>.
@@ -70,6 +70,41 @@ func parseExternalName(externalName string) (int64, string, error) { //nolint:un
 		return 0, "", errors.Wrap(err, errInvalidExternalName)
 	}
 	return orgID, parts[1], nil
+}
+
+// formatExternalNameV2 creates an external name for V2 dashboards in the format <orgId>:<apiVersion>:<name>.
+// Note: namespace is derived from orgID using grafana.OrgIDToNamespace(), so it's not stored in the external name.
+func formatExternalNameV2(orgID int64, apiVersion, name string) string {
+	return strconv.FormatInt(orgID, 10) + ":" + apiVersion + ":" + name
+}
+
+// parseExternalNameV2 parses an external name in the format <orgId>:<apiVersion>:<name>.
+// Returns orgID, apiVersion, name, and an error if the format is invalid.
+// Note: namespace should be derived from orgID using grafana.OrgIDToNamespace().
+func parseExternalNameV2(externalName string) (int64, string, string, error) {
+	parts := strings.SplitN(externalName, ":", 3)
+	if len(parts) != 3 || parts[1] == "" || parts[2] == "" {
+		return 0, "", "", errors.New(errInvalidExternalNameV2)
+	}
+	orgID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, "", "", errors.Wrap(err, errInvalidExternalNameV2)
+	}
+	return orgID, parts[1], parts[2], nil
+}
+
+// isV2ExternalName checks if the external name is in V2 format (has 3 parts with apiVersion pattern).
+// V1 format: <orgId>:<uid> (2 parts)
+// V2 format: <orgId>:<apiVersion>:<name> (3 parts, apiVersion matches v*alpha* or v*beta* pattern)
+func isV2ExternalName(externalName string) bool {
+	parts := strings.SplitN(externalName, ":", 3)
+	if len(parts) != 3 || parts[1] == "" || parts[2] == "" {
+		return false
+	}
+	// Check if the second part looks like a Grafana API version (v0alpha1, v1beta1, v2beta1, etc.)
+	apiVersion := parts[1]
+	return strings.HasPrefix(apiVersion, "v") &&
+		(strings.Contains(apiVersion, "alpha") || strings.Contains(apiVersion, "beta"))
 }
 
 // Setup adds a controller that reconciles Dashboard managed resources.
@@ -236,13 +271,24 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotDashboard)
 	}
 
+	// Check if using V2 API format
+	configJSON := []byte(cr.Spec.ForProvider.ConfigJSON)
+	if grafana.IsDashboardV2Format(configJSON) {
+		return e.observeV2(ctx, cr, configJSON)
+	}
+
+	return e.observeV1(ctx, cr)
+}
+
+// observeV1 handles observation for legacy dashboard API format.
+func (e *external) observeV1(ctx context.Context, cr *v1alpha1.Dashboard) (managed.ExternalObservation, error) { //nolint:gocyclo // acceptable complexity for observe logic
 	// Get the external name (format: <orgId>:<uid>)
 	externalName := meta.GetExternalName(cr)
 
 	// Try to determine the UID to look up
 	var uid string
 
-	if externalName != "" {
+	if externalName != "" && !isV2ExternalName(externalName) {
 		// Parse the external name to extract the UID
 		_, parsedUID, err := parseExternalName(externalName)
 		if err == nil {
@@ -312,7 +358,7 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 
 	// Check if the dashboard is up to date by comparing the JSON
 	// We need to normalize both JSONs for comparison
-	isUpToDate, err := e.isUpToDate(cr.Spec.ForProvider.ConfigJSON, observedJSON)
+	isUpToDate, err := e.isUpToDateV1(cr.Spec.ForProvider.ConfigJSON, observedJSON)
 	if err != nil {
 		// If we can't compare, assume it's not up to date
 		isUpToDate = false
@@ -332,8 +378,93 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
-// isUpToDate compares the desired and observed dashboard JSON.
-func (e *external) isUpToDate(desired, observed string) (bool, error) {
+// observeV2 handles observation for K8s-style dashboard API format.
+func (e *external) observeV2(ctx context.Context, cr *v1alpha1.Dashboard, configJSON []byte) (managed.ExternalObservation, error) { //nolint:gocyclo // acceptable complexity for observe logic
+	// Parse the desired dashboard
+	desiredDash, err := grafana.ParseDashboardV2(configJSON)
+	if err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, "cannot parse dashboard v2 configJson")
+	}
+
+	// Get API version from the desired dashboard
+	apiVersion := grafana.GetDashboardV2APIVersion(desiredDash)
+
+	// Derive namespace from orgID (OSS/On-Premise: org 1 = "default", org N = "org-N")
+	namespace := grafana.OrgIDToNamespace(e.orgID)
+
+	// Get the external name (format: <orgId>:<apiVersion>:<name>)
+	externalName := meta.GetExternalName(cr)
+
+	var name string
+
+	if externalName != "" && isV2ExternalName(externalName) {
+		// Parse the external name to extract apiVersion and name
+		_, extAPIVersion, extName, err := parseExternalNameV2(externalName)
+		if err == nil {
+			apiVersion = extAPIVersion
+			name = extName
+		} else {
+			// Fall back to name from configJson
+			name = desiredDash.Metadata.Name
+		}
+	} else {
+		// Use name from configJson for recovery
+		name = desiredDash.Metadata.Name
+	}
+
+	// If we don't have a name, resource doesn't exist yet
+	if name == "" {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
+
+	// Fetch the dashboard from Grafana
+	dash, err := e.client.GetDashboardV2ByName(ctx, apiVersion, namespace, name)
+	if err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, "cannot get dashboard v2 from Grafana")
+	}
+
+	if dash == nil {
+		return managed.ExternalObservation{ResourceExists: false}, nil
+	}
+
+	// If we found the resource but external-name wasn't set (recovery from create-pending),
+	// set it now so the reconciler can proceed normally
+	observedAPIVersion := grafana.GetDashboardV2APIVersion(&dash.DashboardV2)
+	expectedExtName := formatExternalNameV2(e.orgID, observedAPIVersion, dash.Metadata.Name)
+	if externalName == "" || meta.GetExternalName(cr) != expectedExtName {
+		meta.SetExternalName(cr, expectedExtName)
+	}
+
+	// Update status with observed values
+	cr.Status.AtProvider.UID = &dash.Metadata.Name // In V2, name is the unique identifier
+	folderUID := grafana.GetDashboardV2FolderUID(&dash.DashboardV2)
+	cr.Status.AtProvider.Folder = &folderUID
+	cr.Status.AtProvider.Version = &dash.Metadata.Generation
+
+	// Store the observed config JSON
+	observedJSON, err := json.Marshal(dash.DashboardV2)
+	if err != nil {
+		return managed.ExternalObservation{}, errors.Wrap(err, "cannot marshal observed dashboard v2")
+	}
+	cr.Status.AtProvider.ConfigJSON = string(observedJSON)
+
+	// Check if the dashboard is up to date by comparing the spec
+	isUpToDate, err := e.isUpToDateV2(desiredDash, &dash.DashboardV2)
+	if err != nil {
+		isUpToDate = false
+	}
+
+	cr.Status.SetConditions(xpv1.Available())
+
+	return managed.ExternalObservation{
+		ResourceExists:    true,
+		ResourceUpToDate:  isUpToDate,
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+}
+
+// isUpToDateV1 compares the desired and observed dashboard JSON for legacy API.
+func (e *external) isUpToDateV1(desired, observed string) (bool, error) {
 	var desiredMap, observedMap map[string]any
 	if err := json.Unmarshal([]byte(desired), &desiredMap); err != nil {
 		return false, err
@@ -343,8 +474,8 @@ func (e *external) isUpToDate(desired, observed string) (bool, error) {
 	}
 
 	// Remove fields that are managed by Grafana and shouldn't be compared
-	removeGrafanaManagedFields(desiredMap)
-	removeGrafanaManagedFields(observedMap)
+	removeGrafanaManagedFieldsV1(desiredMap)
+	removeGrafanaManagedFieldsV1(observedMap)
 
 	// Compare the normalized JSON
 	desiredNorm, err := json.Marshal(desiredMap)
@@ -359,12 +490,44 @@ func (e *external) isUpToDate(desired, observed string) (bool, error) {
 	return bytes.Equal(desiredNorm, observedNorm), nil
 }
 
-// removeGrafanaManagedFields removes fields that are managed by Grafana.
-func removeGrafanaManagedFields(m map[string]any) {
+// removeGrafanaManagedFieldsV1 removes fields that are managed by Grafana for legacy API.
+func removeGrafanaManagedFieldsV1(m map[string]any) {
 	// These fields are managed by Grafana and should not be compared
 	delete(m, "id")
 	delete(m, "version")
 	delete(m, "uid") // UID might be set by Grafana if not provided
+}
+
+// isUpToDateV2 compares the desired and observed dashboard for K8s-style API.
+func (e *external) isUpToDateV2(desired, observed *grafana.DashboardV2) (bool, error) {
+	// Compare the spec only - metadata is managed by Grafana
+	desiredSpec, err := json.Marshal(desired.Spec)
+	if err != nil {
+		return false, err
+	}
+	observedSpec, err := json.Marshal(observed.Spec)
+	if err != nil {
+		return false, err
+	}
+
+	if !bytes.Equal(desiredSpec, observedSpec) {
+		return false, nil
+	}
+
+	// Also compare relevant annotations (folder, message)
+	desiredFolder := ""
+	if desired.Metadata.Annotations != nil {
+		desiredFolder = desired.Metadata.Annotations[grafana.DashboardV2AnnotationFolder]
+	}
+	observedFolder := ""
+	if observed.Metadata.Annotations != nil {
+		observedFolder = observed.Metadata.Annotations[grafana.DashboardV2AnnotationFolder]
+	}
+	if desiredFolder != observedFolder {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.ExternalCreation, error) {
@@ -375,6 +538,17 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	cr.Status.SetConditions(xpv1.Creating())
 
+	// Check if using V2 API format
+	configJSON := []byte(cr.Spec.ForProvider.ConfigJSON)
+	if grafana.IsDashboardV2Format(configJSON) {
+		return e.createV2(ctx, cr, configJSON)
+	}
+
+	return e.createV1(ctx, cr)
+}
+
+// createV1 creates a dashboard using the legacy API.
+func (e *external) createV1(ctx context.Context, cr *v1alpha1.Dashboard) (managed.ExternalCreation, error) {
 	// Parse the config JSON to inject/extract UID
 	var dashData map[string]any
 	if err := json.Unmarshal([]byte(cr.Spec.ForProvider.ConfigJSON), &dashData); err != nil {
@@ -382,7 +556,7 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	}
 
 	// If external name is set, parse it to get the UID
-	if externalName := meta.GetExternalName(cr); externalName != "" {
+	if externalName := meta.GetExternalName(cr); externalName != "" && !isV2ExternalName(externalName) {
 		_, uid, err := parseExternalName(externalName)
 		if err == nil {
 			dashData["uid"] = uid
@@ -435,12 +609,74 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	}, nil
 }
 
+// createV2 creates a dashboard using the K8s-style V2 API.
+func (e *external) createV2(ctx context.Context, cr *v1alpha1.Dashboard, configJSON []byte) (managed.ExternalCreation, error) {
+	// Parse the dashboard
+	dash, err := grafana.ParseDashboardV2(configJSON)
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "cannot parse dashboard v2 configJson")
+	}
+
+	// Set namespace from orgID (OSS/On-Premise: org 1 = "default", org N = "org-N")
+	dash.Metadata.Namespace = grafana.OrgIDToNamespace(e.orgID)
+
+	// Apply folder from spec if not set in annotations
+	if cr.Spec.ForProvider.Folder != nil {
+		if dash.Metadata.Annotations == nil {
+			dash.Metadata.Annotations = make(map[string]string)
+		}
+		if dash.Metadata.Annotations[grafana.DashboardV2AnnotationFolder] == "" {
+			dash.Metadata.Annotations[grafana.DashboardV2AnnotationFolder] = *cr.Spec.ForProvider.Folder
+		}
+	}
+
+	// Apply message from spec if not set in annotations
+	if cr.Spec.ForProvider.Message != nil {
+		if dash.Metadata.Annotations == nil {
+			dash.Metadata.Annotations = make(map[string]string)
+		}
+		if dash.Metadata.Annotations[grafana.DashboardV2AnnotationMessage] == "" {
+			dash.Metadata.Annotations[grafana.DashboardV2AnnotationMessage] = *cr.Spec.ForProvider.Message
+		}
+	}
+
+	resp, err := e.client.CreateDashboardV2(ctx, dash)
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrap(err, "cannot create dashboard v2 in Grafana")
+	}
+
+	// Set the external name in format <orgId>:<apiVersion>:<name>
+	apiVersion := grafana.GetDashboardV2APIVersion(&resp.DashboardV2)
+	meta.SetExternalName(cr, formatExternalNameV2(e.orgID, apiVersion, resp.Metadata.Name))
+
+	// Update status
+	cr.Status.AtProvider.UID = &resp.Metadata.Name
+	folderUID := grafana.GetDashboardV2FolderUID(&resp.DashboardV2)
+	cr.Status.AtProvider.Folder = &folderUID
+	cr.Status.AtProvider.Version = &resp.Metadata.Generation
+
+	return managed.ExternalCreation{
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+}
+
 func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.ExternalUpdate, error) {
 	cr, ok := mg.(*v1alpha1.Dashboard)
 	if !ok {
 		return managed.ExternalUpdate{}, errors.New(errNotDashboard)
 	}
 
+	// Check if using V2 API format
+	configJSON := []byte(cr.Spec.ForProvider.ConfigJSON)
+	if grafana.IsDashboardV2Format(configJSON) {
+		return e.updateV2(ctx, cr, configJSON)
+	}
+
+	return e.updateV1(ctx, cr)
+}
+
+// updateV1 updates a dashboard using the legacy API.
+func (e *external) updateV1(ctx context.Context, cr *v1alpha1.Dashboard) (managed.ExternalUpdate, error) {
 	// Parse the config JSON
 	var dashData map[string]any
 	if err := json.Unmarshal([]byte(cr.Spec.ForProvider.ConfigJSON), &dashData); err != nil {
@@ -498,6 +734,69 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	}, nil
 }
 
+// updateV2 updates a dashboard using the K8s-style V2 API.
+func (e *external) updateV2(ctx context.Context, cr *v1alpha1.Dashboard, configJSON []byte) (managed.ExternalUpdate, error) { //nolint:gocyclo // acceptable complexity for update logic
+	// Parse the dashboard
+	dash, err := grafana.ParseDashboardV2(configJSON)
+	if err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot parse dashboard v2 configJson")
+	}
+
+	// Set namespace from orgID (OSS/On-Premise: org 1 = "default", org N = "org-N")
+	dash.Metadata.Namespace = grafana.OrgIDToNamespace(e.orgID)
+
+	// Parse the external name to get apiVersion and name
+	externalName := meta.GetExternalName(cr)
+	if externalName != "" && isV2ExternalName(externalName) {
+		_, apiVersion, name, err := parseExternalNameV2(externalName)
+		if err == nil {
+			// Update the apiVersion in the dashboard to match the external name
+			dash.APIVersion = "dashboard.grafana.app/" + apiVersion
+			dash.Metadata.Name = name
+		}
+	}
+
+	// Apply folder from spec if not set in annotations
+	if cr.Spec.ForProvider.Folder != nil {
+		if dash.Metadata.Annotations == nil {
+			dash.Metadata.Annotations = make(map[string]string)
+		}
+		if dash.Metadata.Annotations[grafana.DashboardV2AnnotationFolder] == "" {
+			dash.Metadata.Annotations[grafana.DashboardV2AnnotationFolder] = *cr.Spec.ForProvider.Folder
+		}
+	}
+
+	// Apply message from spec if not set in annotations
+	if cr.Spec.ForProvider.Message != nil {
+		if dash.Metadata.Annotations == nil {
+			dash.Metadata.Annotations = make(map[string]string)
+		}
+		if dash.Metadata.Annotations[grafana.DashboardV2AnnotationMessage] == "" {
+			dash.Metadata.Annotations[grafana.DashboardV2AnnotationMessage] = *cr.Spec.ForProvider.Message
+		}
+	}
+
+	// Set resourceVersion for optimistic concurrency if we have it from status
+	if cr.Status.AtProvider.Version != nil {
+		dash.Metadata.ResourceVersion = strconv.FormatInt(*cr.Status.AtProvider.Version, 10)
+	}
+
+	resp, err := e.client.UpdateDashboardV2(ctx, dash)
+	if err != nil {
+		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot update dashboard v2 in Grafana")
+	}
+
+	// Update status
+	cr.Status.AtProvider.UID = &resp.Metadata.Name
+	folderUID := grafana.GetDashboardV2FolderUID(&resp.DashboardV2)
+	cr.Status.AtProvider.Folder = &folderUID
+	cr.Status.AtProvider.Version = &resp.Metadata.Generation
+
+	return managed.ExternalUpdate{
+		ConnectionDetails: managed.ConnectionDetails{},
+	}, nil
+}
+
 func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {
 	cr, ok := mg.(*v1alpha1.Dashboard)
 	if !ok {
@@ -512,6 +811,16 @@ func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalDelete{}, nil
 	}
 
+	// Check if using V2 API format based on external name format
+	if isV2ExternalName(externalName) {
+		return e.deleteV2(ctx, externalName)
+	}
+
+	return e.deleteV1(ctx, externalName)
+}
+
+// deleteV1 deletes a dashboard using the legacy API.
+func (e *external) deleteV1(ctx context.Context, externalName string) (managed.ExternalDelete, error) {
 	// Parse the external name to get the UID
 	_, uid, err := parseExternalName(externalName)
 	if err != nil {
@@ -520,6 +829,24 @@ func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	if err := e.client.DeleteDashboardByUID(ctx, uid); err != nil {
 		return managed.ExternalDelete{}, errors.Wrap(err, "cannot delete dashboard from Grafana")
+	}
+
+	return managed.ExternalDelete{}, nil
+}
+
+// deleteV2 deletes a dashboard using the K8s-style V2 API.
+func (e *external) deleteV2(ctx context.Context, externalName string) (managed.ExternalDelete, error) {
+	// Parse the external name to get orgID, apiVersion, and name
+	orgID, apiVersion, name, err := parseExternalNameV2(externalName)
+	if err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, "cannot parse external name v2")
+	}
+
+	// Derive namespace from orgID (OSS/On-Premise: org 1 = "default", org N = "org-N")
+	namespace := grafana.OrgIDToNamespace(orgID)
+
+	if err := e.client.DeleteDashboardV2ByName(ctx, apiVersion, namespace, name); err != nil {
+		return managed.ExternalDelete{}, errors.Wrap(err, "cannot delete dashboard v2 from Grafana")
 	}
 
 	return managed.ExternalDelete{}, nil

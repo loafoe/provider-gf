@@ -1,0 +1,187 @@
+# Example Dashboard resource using the new Kubernetes-style Dashboard API
+# This format is supported in Grafana 11+ with unified storage enabled
+# The configJson uses the dashboard.grafana.app API format
+#
+# Available API versions:
+#   - v1beta1 (preferred): Traditional dashboard format with spec.panels array
+#   - v2beta1: New schema format with spec.elements map and structured kind wrappers
+#
+# The provider auto-detects the API version from the configJson's apiVersion field
+# and routes to the appropriate Grafana API endpoint.
+#
+# IMPORTANT: For OSS/On-Premise Grafana, the namespace is derived from the orgId:
+#   - Org ID 1 -> namespace "default"
+#   - Org ID N -> namespace "org-N" (e.g., org 42 -> "org-42")
+# The namespace in configJson metadata is ignored and overwritten.
+#
+# This example uses v2beta1 schema format (new style with elements).
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Dashboard
+metadata:
+  name: example-dashboard-v2
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-token-auth
+  forProvider:
+    # The folder can be specified here or via metadata.annotations["grafana.app/folder"] in configJson
+    # If specified in both places, the annotation takes precedence
+    folder: "monitoring"
+    message: "Created by Crossplane using V2 API"
+    overwrite: true
+    configJson: |
+      {
+        "apiVersion": "dashboard.grafana.app/v2beta1",
+        "kind": "Dashboard",
+        "metadata": {
+          "name": "crossplane-v2-example",
+          "annotations": {
+            "grafana.app/folder": "monitoring"
+          }
+        },
+        "spec": {
+          "title": "Crossplane V2 Dashboard Example",
+          "schemaVersion": 39,
+          "editable": true,
+          "cursorSync": "Off",
+          "tags": ["crossplane", "v2-api", "example"],
+          "timezone": "browser",
+          "time": {
+            "from": "now-6h",
+            "to": "now"
+          },
+          "templating": {
+            "list": []
+          },
+          "annotations": [],
+          "elements": {
+            "panel-1": {
+              "kind": "Panel",
+              "spec": {
+                "id": 1,
+                "title": "Welcome to V2 API",
+                "description": "This panel demonstrates the new K8s-style Dashboard API",
+                "vizConfig": {
+                  "kind": "VizConfig",
+                  "group": "text",
+                  "spec": {
+                    "options": {
+                      "content": "# Hello from Crossplane V2 API!\n\nThis dashboard was created using the new Kubernetes-style Dashboard API.\n\n## Key Differences from Legacy API\n\n- Uses `apiVersion: dashboard.grafana.app/v2beta1`\n- Dashboard content is in `spec` instead of root level\n- Panels are in `elements` map instead of `panels` array\n- Folder specified via `metadata.annotations[\"grafana.app/folder\"]`",
+                      "mode": "markdown"
+                    }
+                  },
+                  "version": "12.0.0"
+                },
+                "links": [],
+                "data": {
+                  "kind": "QueryGroup",
+                  "spec": {
+                    "queries": [],
+                    "queryOptions": {},
+                    "transformations": []
+                  }
+                }
+              }
+            },
+            "panel-2": {
+              "kind": "Panel",
+              "spec": {
+                "id": 2,
+                "title": "Sample Stat Panel",
+                "description": "",
+                "vizConfig": {
+                  "kind": "VizConfig",
+                  "group": "stat",
+                  "spec": {
+                    "fieldConfig": {
+                      "defaults": {
+                        "color": {
+                          "mode": "thresholds"
+                        },
+                        "thresholds": {
+                          "mode": "absolute",
+                          "steps": [
+                            {"color": "green", "value": null},
+                            {"color": "red", "value": 80}
+                          ]
+                        }
+                      },
+                      "overrides": []
+                    },
+                    "options": {
+                      "colorMode": "value",
+                      "graphMode": "area",
+                      "justifyMode": "auto",
+                      "orientation": "auto",
+                      "reduceOptions": {
+                        "calcs": ["lastNotNull"],
+                        "fields": "",
+                        "values": false
+                      },
+                      "textMode": "auto"
+                    }
+                  },
+                  "version": "12.0.0"
+                },
+                "links": [],
+                "data": {
+                  "kind": "QueryGroup",
+                  "spec": {
+                    "queries": [
+                      {
+                        "kind": "PanelQuery",
+                        "spec": {
+                          "refId": "A",
+                          "hidden": false,
+                          "query": {
+                            "kind": "DataQuery",
+                            "group": "prometheus",
+                            "version": "v0",
+                            "datasource": {
+                              "name": "Prometheus"
+                            },
+                            "spec": {
+                              "expr": "sum(up)",
+                              "legendFormat": "Up instances"
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "queryOptions": {},
+                    "transformations": []
+                  }
+                }
+              }
+            }
+          },
+          "layout": {
+            "kind": "GridLayout",
+            "spec": {
+              "items": [
+                {
+                  "kind": "GridLayoutItem",
+                  "spec": {
+                    "element": {"kind": "ElementReference", "name": "panel-1"},
+                    "x": 0,
+                    "y": 0,
+                    "width": 24,
+                    "height": 8
+                  }
+                },
+                {
+                  "kind": "GridLayoutItem",
+                  "spec": {
+                    "element": {"kind": "ElementReference", "name": "panel-2"},
+                    "x": 0,
+                    "y": 8,
+                    "width": 12,
+                    "height": 8
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
