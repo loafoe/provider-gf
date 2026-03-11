@@ -470,20 +470,24 @@ func (e *external) Disconnect(ctx context.Context) error {
 }
 
 func (e *external) buildRuleGroup(cr *v1alpha1.RuleGroup) grafana.AlertRuleGroup {
+	groupName := cr.Spec.ForProvider.Name
 	rules := make([]grafana.AlertRule, len(cr.Spec.ForProvider.Rules))
 	for i, r := range cr.Spec.ForProvider.Rules {
-		rules[i] = buildAlertRule(r)
+		rules[i] = buildAlertRule(r, e.folderUID, groupName)
 	}
 
 	return grafana.AlertRuleGroup{
-		Title:    cr.Spec.ForProvider.Name,
-		Interval: cr.Spec.ForProvider.IntervalSeconds,
-		Rules:    rules,
+		FolderUID: e.folderUID,
+		Title:     groupName,
+		Interval:  cr.Spec.ForProvider.IntervalSeconds,
+		Rules:     rules,
 	}
 }
 
-func buildAlertRule(r v1alpha1.Rule) grafana.AlertRule {
+func buildAlertRule(r v1alpha1.Rule, folderUID, ruleGroup string) grafana.AlertRule {
 	rule := grafana.AlertRule{
+		FolderUID:    folderUID,
+		RuleGroup:    ruleGroup,
 		Title:        r.Title,
 		Condition:    r.Condition,
 		Labels:       r.Labels,
