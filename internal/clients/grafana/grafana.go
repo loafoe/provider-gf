@@ -28,6 +28,34 @@ import (
 	"time"
 )
 
+// APIError represents an error response from the Grafana API.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("grafana API error (status %d): %s", e.StatusCode, e.Message)
+}
+
+// IsNotFound returns true if the error is a 404 Not Found error.
+func (e *APIError) IsNotFound() bool {
+	return e.StatusCode == http.StatusNotFound
+}
+
+// newAPIError creates an APIError from an HTTP response.
+func newAPIError(statusCode int, body []byte) *APIError {
+	// Try to parse Grafana's JSON error response
+	var errResp struct {
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &errResp); err == nil && errResp.Message != "" {
+		return &APIError{StatusCode: statusCode, Message: errResp.Message}
+	}
+	// Fall back to raw body if not JSON
+	return &APIError{StatusCode: statusCode, Message: string(body)}
+}
+
 // Client is a Grafana API client.
 type Client struct {
 	baseURL    string
@@ -1688,7 +1716,7 @@ func (c *Client) CreateOrUpdateRuleGroup(ctx context.Context, folderUID string, 
 	}
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusCreated {
-		return nil, fmt.Errorf("failed to create/update rule group: status=%d, body=%s", resp.StatusCode, string(body))
+		return nil, newAPIError(resp.StatusCode, body)
 	}
 
 	var result AlertRuleGroup

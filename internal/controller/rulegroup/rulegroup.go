@@ -385,6 +385,10 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 	}
 
 	if _, err = e.client.CreateOrUpdateRuleGroup(ctx, e.folderUID, rg, disableProvenance); err != nil {
+		var apiErr *grafana.APIError
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			return managed.ExternalCreation{}, errors.Wrap(err, "cannot create rule group (404 may indicate a referenced datasource does not exist)")
+		}
 		return managed.ExternalCreation{}, errors.Wrap(err, "cannot create rule group")
 	}
 
@@ -419,6 +423,10 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	}
 
 	if _, err = e.client.CreateOrUpdateRuleGroup(ctx, e.folderUID, rg, disableProvenance); err != nil {
+		var apiErr *grafana.APIError
+		if errors.As(err, &apiErr) && apiErr.IsNotFound() {
+			return managed.ExternalUpdate{}, errors.Wrap(err, "cannot update rule group (404 may indicate a referenced datasource does not exist)")
+		}
 		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot update rule group")
 	}
 
