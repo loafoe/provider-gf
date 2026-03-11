@@ -51,6 +51,7 @@ const (
 	errInvalidExternalName = "invalid external name format, expected <orgId>:<folderUid>:<groupName>"
 	errResolveOrgRef       = "cannot resolve organization reference"
 	errMissingFolder       = "folder reference is required: specify folderUid, folderRef, or folderSelector"
+	errFolderNotFound      = "folder does not exist in Grafana"
 )
 
 func formatExternalName(orgID int64, folderUID, groupName string) string {
@@ -366,6 +367,15 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errMissingFolder)
 	}
 
+	// Verify folder exists before attempting to create rule group
+	folder, err := e.client.GetFolderByUID(ctx, e.folderUID)
+	if err != nil {
+		return managed.ExternalCreation{}, errors.Wrapf(err, "cannot verify folder %q exists", e.folderUID)
+	}
+	if folder == nil {
+		return managed.ExternalCreation{}, errors.Errorf("%s: folder UID %q not found", errFolderNotFound, e.folderUID)
+	}
+
 	cr.Status.SetConditions(xpv1.Creating())
 
 	rg := e.buildRuleGroup(cr)
@@ -374,8 +384,7 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		disableProvenance = *cr.Spec.ForProvider.DisableProvenance
 	}
 
-	_, err := e.client.CreateOrUpdateRuleGroup(ctx, e.folderUID, rg, disableProvenance)
-	if err != nil {
+	if _, err = e.client.CreateOrUpdateRuleGroup(ctx, e.folderUID, rg, disableProvenance); err != nil {
 		return managed.ExternalCreation{}, errors.Wrap(err, "cannot create rule group")
 	}
 
@@ -394,14 +403,22 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errMissingFolder)
 	}
 
+	// Verify folder exists before attempting to update rule group
+	folder, err := e.client.GetFolderByUID(ctx, e.folderUID)
+	if err != nil {
+		return managed.ExternalUpdate{}, errors.Wrapf(err, "cannot verify folder %q exists", e.folderUID)
+	}
+	if folder == nil {
+		return managed.ExternalUpdate{}, errors.Errorf("%s: folder UID %q not found", errFolderNotFound, e.folderUID)
+	}
+
 	rg := e.buildRuleGroup(cr)
 	disableProvenance := true
 	if cr.Spec.ForProvider.DisableProvenance != nil {
 		disableProvenance = *cr.Spec.ForProvider.DisableProvenance
 	}
 
-	_, err := e.client.CreateOrUpdateRuleGroup(ctx, e.folderUID, rg, disableProvenance)
-	if err != nil {
+	if _, err = e.client.CreateOrUpdateRuleGroup(ctx, e.folderUID, rg, disableProvenance); err != nil {
 		return managed.ExternalUpdate{}, errors.Wrap(err, "cannot update rule group")
 	}
 
