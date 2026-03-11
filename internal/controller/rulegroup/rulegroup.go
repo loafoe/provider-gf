@@ -48,10 +48,9 @@ const (
 	errNotRuleGroup        = "managed resource is not a RuleGroup custom resource"
 	errTrackPCUsage        = "cannot track ProviderConfig usage"
 	errGetPC               = "cannot get ProviderConfig"
-	errNewClient           = "cannot create Grafana client"
 	errInvalidExternalName = "invalid external name format, expected <orgId>:<folderUid>:<groupName>"
 	errResolveOrgRef       = "cannot resolve organization reference"
-	errResolveFolderRef    = "cannot resolve folder reference"
+	errMissingFolder       = "folder reference is required: specify folderUid, folderRef, or folderSelector"
 )
 
 func formatExternalName(orgID int64, folderUID, groupName string) string {
@@ -168,10 +167,10 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errResolveOrgRef)
 	}
 
-	folderUID, err := c.resolveFolderUID(ctx, cr)
-	if err != nil {
-		return nil, errors.Wrap(err, errResolveFolderRef)
-	}
+	// Don't fail Connect() if folder resolution fails - this allows Delete() to work
+	// when the referenced folder doesn't exist. Create() and Update() will return
+	// a clear error if folder is required but not resolved.
+	folderUID := c.resolveFolderUID(ctx, cr)
 
 	return &external{client: gfClient, kube: c.kube, orgID: orgID, folderUID: folderUID}, nil
 }
@@ -222,9 +221,9 @@ func (c *connector) getSecretValue(ctx context.Context, namespace string, ref xp
 	return string(data), nil
 }
 
-func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.RuleGroup) (string, error) {
+func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.RuleGroup) string {
 	if cr.Spec.ForProvider.FolderUID != nil && *cr.Spec.ForProvider.FolderUID != "" {
-		return *cr.Spec.ForProvider.FolderUID, nil
+		return *cr.Spec.ForProvider.FolderUID
 	}
 
 	if cr.Spec.ForProvider.FolderRef != nil || cr.Spec.ForProvider.FolderSelector != nil {
@@ -237,22 +236,12 @@ func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.RuleGroup
 			Namespace:    cr.GetNamespace(),
 		})
 		if err == nil && rsp.ResolvedValue != "" {
-			return rsp.ResolvedValue, nil
-		}
-		// Fallback to external name during deletion
-		if folderUID := extractFolderUIDFromExternalName(cr); folderUID != "" {
-			return folderUID, nil
-		}
-		if err != nil {
-			return "", errors.Wrap(err, "cannot resolve folder reference")
+			return rsp.ResolvedValue
 		}
 	}
 
-	if folderUID := extractFolderUIDFromExternalName(cr); folderUID != "" {
-		return folderUID, nil
-	}
-
-	return "", errors.New("folderUid must be specified via folderUid, folderRef, or folderSelector")
+	// Fallback to external name (useful during deletion when referenced folder is already gone)
+	return extractFolderUIDFromExternalName(cr)
 }
 
 func extractFolderUIDFromExternalName(cr resource.Managed) string {
@@ -373,6 +362,10 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotRuleGroup)
 	}
 
+	if e.folderUID == "" {
+		return managed.ExternalCreation{}, errors.New(errMissingFolder)
+	}
+
 	cr.Status.SetConditions(xpv1.Creating())
 
 	rg := e.buildRuleGroup(cr)
@@ -395,6 +388,10 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	cr, ok := mg.(*v1alpha1.RuleGroup)
 	if !ok {
 		return managed.ExternalUpdate{}, errors.New(errNotRuleGroup)
+	}
+
+	if e.folderUID == "" {
+		return managed.ExternalUpdate{}, errors.New(errMissingFolder)
 	}
 
 	rg := e.buildRuleGroup(cr)
