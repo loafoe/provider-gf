@@ -47,10 +47,10 @@ const (
 	errNotFolderPermission = "managed resource is not a FolderPermission custom resource"
 	errTrackPCUsage        = "cannot track ProviderConfig usage"
 	errGetPC               = "cannot get ProviderConfig"
-	errNewClient           = "cannot create Grafana client"
+	errNewClient           = "cannot create Grafana client" //nolint:unused
 	errInvalidExternalName = "invalid external name format, expected <orgId>:<folderUid>"
 	errResolveOrgRef       = "cannot resolve organization reference"
-	errResolveFolderRef    = "cannot resolve folder reference"
+	errMissingFolder       = "folder reference is required: specify folderUid, folderRef, or folderSelector"
 )
 
 // formatExternalName creates an external name in the format <orgId>:<folderUid>.
@@ -202,11 +202,10 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errResolveOrgRef)
 	}
 
-	// Resolve folderUID from FolderRef/FolderSelector or direct FolderUID
-	folderUID, err := c.resolveFolderUID(ctx, cr)
-	if err != nil {
-		return nil, errors.Wrap(err, errResolveFolderRef)
-	}
+	// Don't fail Connect() if folder resolution fails - this allows Delete() to work
+	// when the referenced folder doesn't exist. Create() and Update() will return
+	// a clear error if folder is required but not resolved.
+	folderUID := c.resolveFolderUID(ctx, cr)
 
 	return &external{client: gfClient, kube: c.kube, orgID: orgID, folderUID: folderUID}, nil
 }
@@ -236,10 +235,10 @@ func extractUIDFromExternalName(cr resource.Managed) string {
 	return uid
 }
 
-func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.FolderPermission) (string, error) {
+func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.FolderPermission) string {
 	// If direct UID is provided, use it
 	if cr.Spec.ForProvider.FolderUID != nil && *cr.Spec.ForProvider.FolderUID != "" {
-		return *cr.Spec.ForProvider.FolderUID, nil
+		return *cr.Spec.ForProvider.FolderUID
 	}
 
 	// Try to resolve from reference
@@ -253,23 +252,12 @@ func (c *connector) resolveFolderUID(ctx context.Context, cr *v1alpha1.FolderPer
 			Namespace:    cr.GetNamespace(),
 		})
 		if err == nil && rsp.ResolvedValue != "" {
-			return rsp.ResolvedValue, nil
-		}
-		// If resolution fails but we have an external name (e.g., during deletion), extract UID from it
-		if uid := extractUIDFromExternalName(cr); uid != "" {
-			return uid, nil
-		}
-		if err != nil {
-			return "", errors.Wrap(err, "cannot resolve folder reference")
+			return rsp.ResolvedValue
 		}
 	}
 
 	// Fallback: try to extract from external name (for deletion scenarios)
-	if uid := extractUIDFromExternalName(cr); uid != "" {
-		return uid, nil
-	}
-
-	return "", errors.New("folderUid must be specified via folderUid, folderRef, or folderSelector")
+	return extractUIDFromExternalName(cr)
 }
 
 type external struct {
@@ -421,6 +409,10 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotFolderPermission)
 	}
 
+	if e.folderUID == "" {
+		return managed.ExternalCreation{}, errors.New(errMissingFolder)
+	}
+
 	cr.Status.SetConditions(xpv1.Creating())
 
 	// Build permission request
@@ -441,6 +433,10 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	cr, ok := mg.(*v1alpha1.FolderPermission)
 	if !ok {
 		return managed.ExternalUpdate{}, errors.New(errNotFolderPermission)
+	}
+
+	if e.folderUID == "" {
+		return managed.ExternalUpdate{}, errors.New(errMissingFolder)
 	}
 
 	// Build permission request
@@ -480,6 +476,11 @@ func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 	cr, ok := mg.(*v1alpha1.FolderPermission)
 	if !ok {
 		return managed.ExternalDelete{}, errors.New(errNotFolderPermission)
+	}
+
+	// If folder UID is empty, nothing to delete
+	if e.folderUID == "" {
+		return managed.ExternalDelete{}, nil
 	}
 
 	cr.Status.SetConditions(xpv1.Deleting())

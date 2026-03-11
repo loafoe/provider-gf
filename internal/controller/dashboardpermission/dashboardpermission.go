@@ -47,10 +47,10 @@ const (
 	errNotDashboardPermission = "managed resource is not a DashboardPermission custom resource"
 	errTrackPCUsage           = "cannot track ProviderConfig usage"
 	errGetPC                  = "cannot get ProviderConfig"
-	errNewClient              = "cannot create Grafana client"
+	errNewClient              = "cannot create Grafana client" //nolint:unused
 	errInvalidExternalName    = "invalid external name format, expected <orgId>:<dashboardUid>"
 	errResolveOrgRef          = "cannot resolve organization reference"
-	errResolveDashboardRef    = "cannot resolve dashboard reference"
+	errMissingDashboard       = "dashboard reference is required: specify dashboardUid, dashboardRef, or dashboardSelector"
 )
 
 // formatExternalName creates an external name in the format <orgId>:<dashboardUid>.
@@ -218,11 +218,10 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errResolveOrgRef)
 	}
 
-	// Resolve dashboardUID from DashboardRef/DashboardSelector or direct DashboardUID
-	dashboardUID, err := c.resolveDashboardUID(ctx, cr)
-	if err != nil {
-		return nil, errors.Wrap(err, errResolveDashboardRef)
-	}
+	// Don't fail Connect() if dashboard resolution fails - this allows Delete() to work
+	// when the referenced dashboard doesn't exist. Create() and Update() will return
+	// a clear error if dashboard is required but not resolved.
+	dashboardUID := c.resolveDashboardUID(ctx, cr)
 
 	return &external{client: gfClient, kube: c.kube, orgID: orgID, dashboardUID: dashboardUID}, nil
 }
@@ -252,10 +251,10 @@ func extractUIDFromExternalName(cr resource.Managed) string {
 	return uid
 }
 
-func (c *connector) resolveDashboardUID(ctx context.Context, cr *v1alpha1.DashboardPermission) (string, error) {
+func (c *connector) resolveDashboardUID(ctx context.Context, cr *v1alpha1.DashboardPermission) string {
 	// If direct UID is provided, use it
 	if cr.Spec.ForProvider.DashboardUID != nil && *cr.Spec.ForProvider.DashboardUID != "" {
-		return *cr.Spec.ForProvider.DashboardUID, nil
+		return *cr.Spec.ForProvider.DashboardUID
 	}
 
 	// Try to resolve from reference
@@ -269,23 +268,12 @@ func (c *connector) resolveDashboardUID(ctx context.Context, cr *v1alpha1.Dashbo
 			Namespace:    cr.GetNamespace(),
 		})
 		if err == nil && rsp.ResolvedValue != "" {
-			return rsp.ResolvedValue, nil
-		}
-		// If resolution fails but we have an external name (e.g., during deletion), extract UID from it
-		if uid := extractUIDFromExternalName(cr); uid != "" {
-			return uid, nil
-		}
-		if err != nil {
-			return "", errors.Wrap(err, "cannot resolve dashboard reference")
+			return rsp.ResolvedValue
 		}
 	}
 
 	// Fallback: try to extract from external name (for deletion scenarios)
-	if uid := extractUIDFromExternalName(cr); uid != "" {
-		return uid, nil
-	}
-
-	return "", errors.New("dashboardUid must be specified via dashboardUid, dashboardRef, or dashboardSelector")
+	return extractUIDFromExternalName(cr)
 }
 
 type external struct {
@@ -437,6 +425,10 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalCreation{}, errors.New(errNotDashboardPermission)
 	}
 
+	if e.dashboardUID == "" {
+		return managed.ExternalCreation{}, errors.New(errMissingDashboard)
+	}
+
 	cr.Status.SetConditions(xpv1.Creating())
 
 	// Build permission request
@@ -457,6 +449,10 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	cr, ok := mg.(*v1alpha1.DashboardPermission)
 	if !ok {
 		return managed.ExternalUpdate{}, errors.New(errNotDashboardPermission)
+	}
+
+	if e.dashboardUID == "" {
+		return managed.ExternalUpdate{}, errors.New(errMissingDashboard)
 	}
 
 	// Build permission request
@@ -496,6 +492,11 @@ func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.Ext
 	cr, ok := mg.(*v1alpha1.DashboardPermission)
 	if !ok {
 		return managed.ExternalDelete{}, errors.New(errNotDashboardPermission)
+	}
+
+	// If dashboard UID is empty, nothing to delete
+	if e.dashboardUID == "" {
+		return managed.ExternalDelete{}, nil
 	}
 
 	cr.Status.SetConditions(xpv1.Deleting())

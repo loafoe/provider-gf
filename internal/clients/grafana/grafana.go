@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -1663,7 +1664,7 @@ type AlertNotification struct {
 
 // GetRuleGroup retrieves a rule group by folder UID and group name.
 func (c *Client) GetRuleGroup(ctx context.Context, folderUID, groupName string) (*AlertRuleGroup, error) {
-	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, groupName)
+	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, url.PathEscape(groupName))
 	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rule group: %w", err)
@@ -1693,7 +1694,7 @@ func (c *Client) GetRuleGroup(ctx context.Context, folderUID, groupName string) 
 
 // CreateOrUpdateRuleGroup creates or updates a rule group.
 func (c *Client) CreateOrUpdateRuleGroup(ctx context.Context, folderUID string, rg AlertRuleGroup, disableProvenance bool) (*AlertRuleGroup, error) {
-	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, rg.Title)
+	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, url.PathEscape(rg.Title))
 
 	httpReq, err := c.newRequest(ctx, http.MethodPut, path, rg)
 	if err != nil {
@@ -1729,7 +1730,7 @@ func (c *Client) CreateOrUpdateRuleGroup(ctx context.Context, folderUID string, 
 
 // DeleteRuleGroup deletes a rule group.
 func (c *Client) DeleteRuleGroup(ctx context.Context, folderUID, groupName string) error {
-	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, groupName)
+	path := fmt.Sprintf("/api/v1/provisioning/folder/%s/rule-groups/%s", folderUID, url.PathEscape(groupName))
 	resp, err := c.doRequest(ctx, http.MethodDelete, path, nil)
 	if err != nil {
 		return fmt.Errorf("failed to delete rule group: %w", err)
