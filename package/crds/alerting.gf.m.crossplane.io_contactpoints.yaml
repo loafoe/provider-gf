@@ -835,6 +835,180 @@ spec:
                         description: Headers is a map of custom HTTP headers to attach
                           to the webhook request.
                         type: object
+                      hmacConfig:
+                        description: HMACConfig configures HMAC signature for the
+                          webhook.
+                        properties:
+                          header:
+                            description: |-
+                              Header is the header in which the HMAC signature will be included.
+                              Defaults to X-Grafana-Alerting-Signature.
+                            type: string
+                          secretRef:
+                            description: SecretRef is the secret key used to generate
+                              the HMAC signature.
+                            properties:
+                              key:
+                                description: The key to select.
+                                type: string
+                              name:
+                                description: Name of the secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - key
+                            - name
+                            - namespace
+                            type: object
+                          timestampHeader:
+                            description: |-
+                              TimestampHeader is the header to include the timestamp in the HMAC signature.
+                              If set, the timestamp will be included in the HMAC signature.
+                            type: string
+                        required:
+                        - secretRef
+                        type: object
+                      httpConfig:
+                        description: HTTPConfig configures common HTTP client options
+                          including OAuth2.
+                        properties:
+                          oauth2:
+                            description: OAuth2 configures OAuth2 authentication.
+                            properties:
+                              clientId:
+                                description: ClientID is the client ID to use when
+                                  authenticating.
+                                type: string
+                              clientSecretRef:
+                                description: ClientSecretRef is the client secret
+                                  to use when authenticating.
+                                properties:
+                                  key:
+                                    description: The key to select.
+                                    type: string
+                                  name:
+                                    description: Name of the secret.
+                                    type: string
+                                  namespace:
+                                    description: Namespace of the secret.
+                                    type: string
+                                required:
+                                - key
+                                - name
+                                - namespace
+                                type: object
+                              endpointParams:
+                                additionalProperties:
+                                  type: string
+                                description: EndpointParams are optional parameters
+                                  to append to the access token request.
+                                type: object
+                              proxyConfig:
+                                description: ProxyConfig configures proxy settings
+                                  for OAuth2 requests.
+                                properties:
+                                  noProxy:
+                                    description: NoProxy is a comma-separated list
+                                      of addresses that should not use a proxy.
+                                    type: string
+                                  proxyConnectHeader:
+                                    additionalProperties:
+                                      type: string
+                                    description: ProxyConnectHeader are optional headers
+                                      to send to proxies during CONNECT requests.
+                                    type: object
+                                  proxyFromEnvironment:
+                                    description: ProxyFromEnvironment uses HTTP_PROXY,
+                                      HTTPS_PROXY and NO_PROXY environment variables.
+                                    type: boolean
+                                  proxyUrl:
+                                    description: ProxyURL is the HTTP proxy server
+                                      URL to use to connect to the targets.
+                                    type: string
+                                type: object
+                              scopes:
+                                description: Scopes are optional scopes to request
+                                  when obtaining an access token.
+                                items:
+                                  type: string
+                                type: array
+                              tlsConfig:
+                                description: TLSConfig configures TLS for OAuth2 requests.
+                                properties:
+                                  caCertificateSecretRef:
+                                    description: CACertificateSecretRef is the CA
+                                      certificate in PEM format to use when verifying
+                                      the server's certificate.
+                                    properties:
+                                      key:
+                                        description: The key to select.
+                                        type: string
+                                      name:
+                                        description: Name of the secret.
+                                        type: string
+                                      namespace:
+                                        description: Namespace of the secret.
+                                        type: string
+                                    required:
+                                    - key
+                                    - name
+                                    - namespace
+                                    type: object
+                                  clientCertificateSecretRef:
+                                    description: ClientCertificateSecretRef is the
+                                      client certificate in PEM format to use when
+                                      connecting to the server.
+                                    properties:
+                                      key:
+                                        description: The key to select.
+                                        type: string
+                                      name:
+                                        description: Name of the secret.
+                                        type: string
+                                      namespace:
+                                        description: Namespace of the secret.
+                                        type: string
+                                    required:
+                                    - key
+                                    - name
+                                    - namespace
+                                    type: object
+                                  clientKeySecretRef:
+                                    description: ClientKeySecretRef is the client
+                                      key in PEM format to use when connecting to
+                                      the server.
+                                    properties:
+                                      key:
+                                        description: The key to select.
+                                        type: string
+                                      name:
+                                        description: Name of the secret.
+                                        type: string
+                                      namespace:
+                                        description: Namespace of the secret.
+                                        type: string
+                                    required:
+                                    - key
+                                    - name
+                                    - namespace
+                                    type: object
+                                  insecureSkipVerify:
+                                    description: InsecureSkipVerify disables verification
+                                      of the server's certificate chain and host name.
+                                    type: boolean
+                                type: object
+                              tokenUrl:
+                                description: TokenURL is the URL for the access token
+                                  endpoint.
+                                type: string
+                            required:
+                            - clientId
+                            - clientSecretRef
+                            - tokenUrl
+                            type: object
+                        type: object
                       httpMethod:
                         description: HTTPMethod is the HTTP method to use.
                         enum:
@@ -848,6 +1022,23 @@ spec:
                       message:
                         description: Message is the message body.
                         type: string
+                      payload:
+                        description: Payload configures a custom payload template
+                          that overrides Message and Title.
+                        properties:
+                          template:
+                            description: Template is the custom payload template.
+                            type: string
+                          vars:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              Vars are variables to be used in the payload template.
+                              They will be available in the template as .Vars.<variable_name>.
+                            type: object
+                        required:
+                        - template
+                        type: object
                       settings:
                         additionalProperties:
                           type: string
@@ -857,6 +1048,69 @@ spec:
                       title:
                         description: Title is the message title.
                         type: string
+                      tlsConfig:
+                        description: TLSConfig configures TLS for the webhook notifier.
+                        properties:
+                          caCertificateSecretRef:
+                            description: CACertificateSecretRef is the CA certificate
+                              in PEM format to use when verifying the server's certificate.
+                            properties:
+                              key:
+                                description: The key to select.
+                                type: string
+                              name:
+                                description: Name of the secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - key
+                            - name
+                            - namespace
+                            type: object
+                          clientCertificateSecretRef:
+                            description: ClientCertificateSecretRef is the client
+                              certificate in PEM format to use when connecting to
+                              the server.
+                            properties:
+                              key:
+                                description: The key to select.
+                                type: string
+                              name:
+                                description: Name of the secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - key
+                            - name
+                            - namespace
+                            type: object
+                          clientKeySecretRef:
+                            description: ClientKeySecretRef is the client key in PEM
+                              format to use when connecting to the server.
+                            properties:
+                              key:
+                                description: The key to select.
+                                type: string
+                              name:
+                                description: Name of the secret.
+                                type: string
+                              namespace:
+                                description: Namespace of the secret.
+                                type: string
+                            required:
+                            - key
+                            - name
+                            - namespace
+                            type: object
+                          insecureSkipVerify:
+                            description: InsecureSkipVerify disables verification
+                              of the server's certificate chain and host name.
+                            type: boolean
+                        type: object
                       urlSecretRef:
                         description: URLSecretRef is the webhook URL.
                         properties:

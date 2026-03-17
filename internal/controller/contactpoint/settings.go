@@ -494,8 +494,134 @@ func (e *external) buildWebhookSettings(ctx context.Context, cfg *v1alpha1.Webho
 	if len(cfg.Headers) > 0 {
 		settings["headers"] = cfg.Headers
 	}
+	// TLS configuration
+	if cfg.TLSConfig != nil {
+		tlsConfig, err := e.buildWebhookTLSConfig(ctx, cfg.TLSConfig, ns)
+		if err != nil {
+			return "", nil, err
+		}
+		if len(tlsConfig) > 0 {
+			settings["tlsConfig"] = tlsConfig
+		}
+	}
+	// HMAC configuration
+	if cfg.HMACConfig != nil {
+		hmacConfig, err := e.buildWebhookHMACConfig(ctx, cfg.HMACConfig, ns)
+		if err != nil {
+			return "", nil, err
+		}
+		settings["hmacConfig"] = hmacConfig
+	}
+	// Payload configuration
+	if cfg.Payload != nil {
+		payload := map[string]any{"template": cfg.Payload.Template}
+		if len(cfg.Payload.Vars) > 0 {
+			payload["vars"] = cfg.Payload.Vars
+		}
+		settings["payload"] = payload
+	}
+	// HTTP config (OAuth2)
+	if cfg.HTTPConfig != nil && cfg.HTTPConfig.OAuth2 != nil {
+		oauth2, err := e.buildWebhookOAuth2Config(ctx, cfg.HTTPConfig.OAuth2, ns)
+		if err != nil {
+			return "", nil, err
+		}
+		settings["httpConfig"] = map[string]any{"oauth2": oauth2}
+	}
 	mergeSettings(settings, cfg.Settings)
 	return "webhook", settings, nil
+}
+
+func (e *external) buildWebhookTLSConfig(ctx context.Context, cfg *v1alpha1.WebhookTLSConfig, ns string) (map[string]any, error) {
+	tlsConfig := make(map[string]any)
+	if cfg.InsecureSkipVerify != nil {
+		tlsConfig["insecureSkipVerify"] = *cfg.InsecureSkipVerify
+	}
+	if cfg.CACertificateSecretRef != nil {
+		val, err := e.getSecretValue(ctx, ns, *cfg.CACertificateSecretRef)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot get webhook TLS caCertificate")
+		}
+		tlsConfig["caCertificate"] = val
+	}
+	if cfg.ClientCertificateSecretRef != nil {
+		val, err := e.getSecretValue(ctx, ns, *cfg.ClientCertificateSecretRef)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot get webhook TLS clientCertificate")
+		}
+		tlsConfig["clientCertificate"] = val
+	}
+	if cfg.ClientKeySecretRef != nil {
+		val, err := e.getSecretValue(ctx, ns, *cfg.ClientKeySecretRef)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot get webhook TLS clientKey")
+		}
+		tlsConfig["clientKey"] = val
+	}
+	return tlsConfig, nil
+}
+
+func (e *external) buildWebhookHMACConfig(ctx context.Context, cfg *v1alpha1.WebhookHMACConfig, ns string) (map[string]any, error) {
+	secret, err := e.getSecretValue(ctx, ns, cfg.SecretRef)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get webhook HMAC secret")
+	}
+	hmacConfig := map[string]any{"secret": secret}
+	if cfg.Header != nil {
+		hmacConfig["header"] = *cfg.Header
+	}
+	if cfg.TimestampHeader != nil {
+		hmacConfig["timestampHeader"] = *cfg.TimestampHeader
+	}
+	return hmacConfig, nil
+}
+
+func (e *external) buildWebhookOAuth2Config(ctx context.Context, cfg *v1alpha1.WebhookOAuth2Config, ns string) (map[string]any, error) {
+	clientSecret, err := e.getSecretValue(ctx, ns, cfg.ClientSecretRef)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get webhook OAuth2 clientSecret")
+	}
+	oauth2 := map[string]any{
+		"tokenUrl":     cfg.TokenURL,
+		"clientId":     cfg.ClientID,
+		"clientSecret": clientSecret,
+	}
+	if len(cfg.Scopes) > 0 {
+		oauth2["scopes"] = cfg.Scopes
+	}
+	if len(cfg.EndpointParams) > 0 {
+		oauth2["endpointParams"] = cfg.EndpointParams
+	}
+	// Proxy configuration
+	if cfg.ProxyConfig != nil {
+		proxyConfig := make(map[string]any)
+		if cfg.ProxyConfig.ProxyURL != nil {
+			proxyConfig["proxyUrl"] = *cfg.ProxyConfig.ProxyURL
+		}
+		if cfg.ProxyConfig.ProxyFromEnvironment != nil {
+			proxyConfig["proxyFromEnvironment"] = *cfg.ProxyConfig.ProxyFromEnvironment
+		}
+		if cfg.ProxyConfig.NoProxy != nil {
+			proxyConfig["noProxy"] = *cfg.ProxyConfig.NoProxy
+		}
+		if len(cfg.ProxyConfig.ProxyConnectHeader) > 0 {
+			proxyConfig["proxyConnectHeader"] = cfg.ProxyConfig.ProxyConnectHeader
+		}
+		if len(proxyConfig) > 0 {
+			oauth2["proxyConfig"] = proxyConfig
+		}
+	}
+	// TLS configuration for OAuth2
+	if cfg.TLSConfig != nil {
+		tlsConfig, err := e.buildWebhookTLSConfig(ctx, cfg.TLSConfig, ns)
+		if err != nil {
+			return nil, errors.Wrap(err, "cannot build webhook OAuth2 TLS config")
+		}
+		if len(tlsConfig) > 0 {
+			oauth2["tlsConfig"] = tlsConfig
+		}
+	}
+	return oauth2, nil
 }
 
 // mergeSettings merges custom settings into the settings map.

@@ -68,7 +68,7 @@ spec:
         team: platform
       disableResolveMessage: false
 
-# Example ContactPoint - Webhook
+# Example ContactPoint - Webhook (basic auth)
 ---
 apiVersion: alerting.gf.m.crossplane.io/v1alpha1
 kind: ContactPoint
@@ -92,6 +92,112 @@ spec:
         name: webhook-credentials
         namespace: default
         key: password
+      disableResolveMessage: false
+
+# Example ContactPoint - Webhook with TLS and HMAC
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-webhook-tls-hmac
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "Secure Webhook"
+    webhook:
+      urlSecretRef:
+        name: webhook-credentials
+        namespace: default
+        key: url
+      httpMethod: POST
+      # TLS configuration for mTLS
+      tlsConfig:
+        insecureSkipVerify: false
+        caCertificateSecretRef:
+          name: webhook-tls
+          namespace: default
+          key: ca.crt
+        clientCertificateSecretRef:
+          name: webhook-tls
+          namespace: default
+          key: tls.crt
+        clientKeySecretRef:
+          name: webhook-tls
+          namespace: default
+          key: tls.key
+      # HMAC signature configuration
+      hmacConfig:
+        secretRef:
+          name: webhook-hmac
+          namespace: default
+          key: secret
+        header: X-Signature
+        timestampHeader: X-Timestamp
+      disableResolveMessage: false
+
+# Example ContactPoint - Webhook with OAuth2
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-webhook-oauth2
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "OAuth2 Webhook"
+    webhook:
+      urlSecretRef:
+        name: webhook-credentials
+        namespace: default
+        key: url
+      httpMethod: POST
+      httpConfig:
+        oauth2:
+          tokenUrl: "https://auth.example.com/oauth/token"
+          clientId: "grafana-alerting"
+          clientSecretRef:
+            name: oauth2-credentials
+            namespace: default
+            key: clientSecret
+          scopes:
+            - "alerts:write"
+          endpointParams:
+            audience: "https://api.example.com"
+      disableResolveMessage: false
+
+# Example ContactPoint - Webhook with custom payload
+---
+apiVersion: alerting.gf.m.crossplane.io/v1alpha1
+kind: ContactPoint
+metadata:
+  name: example-webhook-payload
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+    kind: ProviderConfig
+  forProvider:
+    name: "Custom Payload Webhook"
+    webhook:
+      urlSecretRef:
+        name: webhook-credentials
+        namespace: default
+        key: url
+      httpMethod: POST
+      payload:
+        template: |
+          {
+            "environment": "{{ .Vars.env }}",
+            "alerts": {{ .Alerts | toJson }}
+          }
+        vars:
+          env: "production"
       disableResolveMessage: false
 
 # Example ContactPoint - Microsoft Teams

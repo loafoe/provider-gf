@@ -574,6 +574,22 @@ type WebhookConfig struct {
 	// +optional
 	Headers map[string]string `json:"headers,omitempty"`
 
+	// TLSConfig configures TLS for the webhook notifier.
+	// +optional
+	TLSConfig *WebhookTLSConfig `json:"tlsConfig,omitempty"`
+
+	// HMACConfig configures HMAC signature for the webhook.
+	// +optional
+	HMACConfig *WebhookHMACConfig `json:"hmacConfig,omitempty"`
+
+	// Payload configures a custom payload template that overrides Message and Title.
+	// +optional
+	Payload *WebhookPayloadConfig `json:"payload,omitempty"`
+
+	// HTTPConfig configures common HTTP client options including OAuth2.
+	// +optional
+	HTTPConfig *WebhookHTTPConfig `json:"httpConfig,omitempty"`
+
 	// DisableResolveMessage disables sending resolve messages.
 	// +optional
 	DisableResolveMessage *bool `json:"disableResolveMessage,omitempty"`
@@ -581,6 +597,111 @@ type WebhookConfig struct {
 	// Settings is a map of arbitrary key/value pairs for custom notifier settings.
 	// +optional
 	Settings map[string]string `json:"settings,omitempty"`
+}
+
+// WebhookTLSConfig configures TLS for a webhook.
+type WebhookTLSConfig struct {
+	// InsecureSkipVerify disables verification of the server's certificate chain and host name.
+	// +optional
+	InsecureSkipVerify *bool `json:"insecureSkipVerify,omitempty"`
+
+	// CACertificateSecretRef is the CA certificate in PEM format to use when verifying the server's certificate.
+	// +optional
+	CACertificateSecretRef *xpv1.SecretKeySelector `json:"caCertificateSecretRef,omitempty"`
+
+	// ClientCertificateSecretRef is the client certificate in PEM format to use when connecting to the server.
+	// +optional
+	ClientCertificateSecretRef *xpv1.SecretKeySelector `json:"clientCertificateSecretRef,omitempty"`
+
+	// ClientKeySecretRef is the client key in PEM format to use when connecting to the server.
+	// +optional
+	ClientKeySecretRef *xpv1.SecretKeySelector `json:"clientKeySecretRef,omitempty"`
+}
+
+// WebhookHMACConfig configures HMAC signature for a webhook.
+type WebhookHMACConfig struct {
+	// SecretRef is the secret key used to generate the HMAC signature.
+	// +kubebuilder:validation:Required
+	SecretRef xpv1.SecretKeySelector `json:"secretRef"`
+
+	// Header is the header in which the HMAC signature will be included.
+	// Defaults to X-Grafana-Alerting-Signature.
+	// +optional
+	Header *string `json:"header,omitempty"`
+
+	// TimestampHeader is the header to include the timestamp in the HMAC signature.
+	// If set, the timestamp will be included in the HMAC signature.
+	// +optional
+	TimestampHeader *string `json:"timestampHeader,omitempty"`
+}
+
+// WebhookPayloadConfig configures a custom payload template for a webhook.
+type WebhookPayloadConfig struct {
+	// Template is the custom payload template.
+	// +kubebuilder:validation:Required
+	Template string `json:"template"`
+
+	// Vars are variables to be used in the payload template.
+	// They will be available in the template as .Vars.<variable_name>.
+	// +optional
+	Vars map[string]string `json:"vars,omitempty"`
+}
+
+// WebhookHTTPConfig configures common HTTP client options.
+type WebhookHTTPConfig struct {
+	// OAuth2 configures OAuth2 authentication.
+	// +optional
+	OAuth2 *WebhookOAuth2Config `json:"oauth2,omitempty"`
+}
+
+// WebhookOAuth2Config configures OAuth2 authentication for a webhook.
+type WebhookOAuth2Config struct {
+	// TokenURL is the URL for the access token endpoint.
+	// +kubebuilder:validation:Required
+	TokenURL string `json:"tokenUrl"`
+
+	// ClientID is the client ID to use when authenticating.
+	// +kubebuilder:validation:Required
+	ClientID string `json:"clientId"`
+
+	// ClientSecretRef is the client secret to use when authenticating.
+	// +kubebuilder:validation:Required
+	ClientSecretRef xpv1.SecretKeySelector `json:"clientSecretRef"`
+
+	// Scopes are optional scopes to request when obtaining an access token.
+	// +optional
+	Scopes []string `json:"scopes,omitempty"`
+
+	// EndpointParams are optional parameters to append to the access token request.
+	// +optional
+	EndpointParams map[string]string `json:"endpointParams,omitempty"`
+
+	// ProxyConfig configures proxy settings for OAuth2 requests.
+	// +optional
+	ProxyConfig *WebhookProxyConfig `json:"proxyConfig,omitempty"`
+
+	// TLSConfig configures TLS for OAuth2 requests.
+	// +optional
+	TLSConfig *WebhookTLSConfig `json:"tlsConfig,omitempty"`
+}
+
+// WebhookProxyConfig configures proxy settings for HTTP requests.
+type WebhookProxyConfig struct {
+	// ProxyURL is the HTTP proxy server URL to use to connect to the targets.
+	// +optional
+	ProxyURL *string `json:"proxyUrl,omitempty"`
+
+	// ProxyFromEnvironment uses HTTP_PROXY, HTTPS_PROXY and NO_PROXY environment variables.
+	// +optional
+	ProxyFromEnvironment *bool `json:"proxyFromEnvironment,omitempty"`
+
+	// NoProxy is a comma-separated list of addresses that should not use a proxy.
+	// +optional
+	NoProxy *string `json:"noProxy,omitempty"`
+
+	// ProxyConnectHeader are optional headers to send to proxies during CONNECT requests.
+	// +optional
+	ProxyConnectHeader map[string]string `json:"proxyConnectHeader,omitempty"`
 }
 
 // ContactPointObservation are the observable fields of a ContactPoint.
