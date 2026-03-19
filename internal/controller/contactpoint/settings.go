@@ -501,7 +501,7 @@ func (e *external) buildWebhookSettings(ctx context.Context, cfg *v1alpha1.Webho
 			return "", nil, err
 		}
 		if len(tlsConfig) > 0 {
-			settings["tlsConfig"] = tlsConfig
+			settings["tls_config"] = tlsConfig
 		}
 	}
 	// HMAC configuration
@@ -510,7 +510,7 @@ func (e *external) buildWebhookSettings(ctx context.Context, cfg *v1alpha1.Webho
 		if err != nil {
 			return "", nil, err
 		}
-		settings["hmacConfig"] = hmacConfig
+		settings["hmac_config"] = hmacConfig
 	}
 	// Payload configuration
 	if cfg.Payload != nil {
@@ -526,7 +526,7 @@ func (e *external) buildWebhookSettings(ctx context.Context, cfg *v1alpha1.Webho
 		if err != nil {
 			return "", nil, err
 		}
-		settings["httpConfig"] = map[string]any{"oauth2": oauth2}
+		settings["http_config"] = map[string]any{"oauth2": oauth2}
 	}
 	mergeSettings(settings, cfg.Settings)
 	return "webhook", settings, nil
@@ -535,28 +535,28 @@ func (e *external) buildWebhookSettings(ctx context.Context, cfg *v1alpha1.Webho
 func (e *external) buildWebhookTLSConfig(ctx context.Context, cfg *v1alpha1.WebhookTLSConfig, ns string) (map[string]any, error) {
 	tlsConfig := make(map[string]any)
 	if cfg.InsecureSkipVerify != nil {
-		tlsConfig["insecureSkipVerify"] = *cfg.InsecureSkipVerify
+		tlsConfig["insecure_skip_verify"] = *cfg.InsecureSkipVerify
 	}
 	if cfg.CACertificateSecretRef != nil {
 		val, err := e.getSecretValue(ctx, ns, *cfg.CACertificateSecretRef)
 		if err != nil {
-			return nil, errors.Wrap(err, "cannot get webhook TLS caCertificate")
+			return nil, errors.Wrap(err, "cannot get webhook TLS ca_certificate")
 		}
-		tlsConfig["caCertificate"] = val
+		tlsConfig["ca_certificate"] = val
 	}
 	if cfg.ClientCertificateSecretRef != nil {
 		val, err := e.getSecretValue(ctx, ns, *cfg.ClientCertificateSecretRef)
 		if err != nil {
-			return nil, errors.Wrap(err, "cannot get webhook TLS clientCertificate")
+			return nil, errors.Wrap(err, "cannot get webhook TLS client_certificate")
 		}
-		tlsConfig["clientCertificate"] = val
+		tlsConfig["client_certificate"] = val
 	}
 	if cfg.ClientKeySecretRef != nil {
 		val, err := e.getSecretValue(ctx, ns, *cfg.ClientKeySecretRef)
 		if err != nil {
-			return nil, errors.Wrap(err, "cannot get webhook TLS clientKey")
+			return nil, errors.Wrap(err, "cannot get webhook TLS client_key")
 		}
-		tlsConfig["clientKey"] = val
+		tlsConfig["client_key"] = val
 	}
 	return tlsConfig, nil
 }
@@ -571,7 +571,7 @@ func (e *external) buildWebhookHMACConfig(ctx context.Context, cfg *v1alpha1.Web
 		hmacConfig["header"] = *cfg.Header
 	}
 	if cfg.TimestampHeader != nil {
-		hmacConfig["timestampHeader"] = *cfg.TimestampHeader
+		hmacConfig["timestamp_header"] = *cfg.TimestampHeader
 	}
 	return hmacConfig, nil
 }
@@ -579,36 +579,36 @@ func (e *external) buildWebhookHMACConfig(ctx context.Context, cfg *v1alpha1.Web
 func (e *external) buildWebhookOAuth2Config(ctx context.Context, cfg *v1alpha1.WebhookOAuth2Config, ns string) (map[string]any, error) {
 	clientSecret, err := e.getSecretValue(ctx, ns, cfg.ClientSecretRef)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot get webhook OAuth2 clientSecret")
+		return nil, errors.Wrap(err, "cannot get webhook OAuth2 client_secret")
 	}
 	oauth2 := map[string]any{
-		"tokenUrl":     cfg.TokenURL,
-		"clientId":     cfg.ClientID,
-		"clientSecret": clientSecret,
+		"token_url":     cfg.TokenURL,
+		"client_id":     cfg.ClientID,
+		"client_secret": clientSecret,
 	}
 	if len(cfg.Scopes) > 0 {
 		oauth2["scopes"] = cfg.Scopes
 	}
 	if len(cfg.EndpointParams) > 0 {
-		oauth2["endpointParams"] = cfg.EndpointParams
+		oauth2["endpoint_params"] = cfg.EndpointParams
 	}
 	// Proxy configuration
 	if cfg.ProxyConfig != nil {
 		proxyConfig := make(map[string]any)
 		if cfg.ProxyConfig.ProxyURL != nil {
-			proxyConfig["proxyUrl"] = *cfg.ProxyConfig.ProxyURL
+			proxyConfig["proxy_url"] = *cfg.ProxyConfig.ProxyURL
 		}
 		if cfg.ProxyConfig.ProxyFromEnvironment != nil {
-			proxyConfig["proxyFromEnvironment"] = *cfg.ProxyConfig.ProxyFromEnvironment
+			proxyConfig["proxy_from_environment"] = *cfg.ProxyConfig.ProxyFromEnvironment
 		}
 		if cfg.ProxyConfig.NoProxy != nil {
-			proxyConfig["noProxy"] = *cfg.ProxyConfig.NoProxy
+			proxyConfig["no_proxy"] = *cfg.ProxyConfig.NoProxy
 		}
 		if len(cfg.ProxyConfig.ProxyConnectHeader) > 0 {
-			proxyConfig["proxyConnectHeader"] = cfg.ProxyConfig.ProxyConnectHeader
+			proxyConfig["proxy_connect_header"] = cfg.ProxyConfig.ProxyConnectHeader
 		}
 		if len(proxyConfig) > 0 {
-			oauth2["proxyConfig"] = proxyConfig
+			oauth2["proxy_config"] = proxyConfig
 		}
 	}
 	// TLS configuration for OAuth2
@@ -618,7 +618,7 @@ func (e *external) buildWebhookOAuth2Config(ctx context.Context, cfg *v1alpha1.W
 			return nil, errors.Wrap(err, "cannot build webhook OAuth2 TLS config")
 		}
 		if len(tlsConfig) > 0 {
-			oauth2["tlsConfig"] = tlsConfig
+			oauth2["tls_config"] = tlsConfig
 		}
 	}
 	return oauth2, nil
