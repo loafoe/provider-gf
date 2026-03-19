@@ -178,16 +178,16 @@ func (e *external) buildEmailSettings(cfg *v1alpha1.EmailConfig) (string, map[st
 
 func (e *external) buildJiraSettings(ctx context.Context, cfg *v1alpha1.JiraConfig, ns string) (string, map[string]any, error) { //nolint:gocyclo // many optional fields
 	settings := map[string]any{
-		"apiUrl":    cfg.APIURL,
-		"project":   cfg.Project,
-		"issueType": cfg.IssueType,
+		"api_url":    cfg.APIURL,
+		"project":    cfg.Project,
+		"issue_type": cfg.IssueType,
 	}
 	if cfg.APITokenSecretRef != nil {
 		val, err := e.getSecretValue(ctx, ns, *cfg.APITokenSecretRef)
 		if err != nil {
-			return "", nil, errors.Wrap(err, "cannot get jira apiToken")
+			return "", nil, errors.Wrap(err, "cannot get jira api_token")
 		}
-		settings["apiToken"] = val
+		settings["api_token"] = val
 	}
 	if cfg.UserSecretRef != nil {
 		val, err := e.getSecretValue(ctx, ns, *cfg.UserSecretRef)
@@ -216,22 +216,22 @@ func (e *external) buildJiraSettings(ctx context.Context, cfg *v1alpha1.JiraConf
 		settings["labels"] = strings.Join(cfg.Labels, ",")
 	}
 	if cfg.DedupKeyField != nil {
-		settings["dedupKeyField"] = *cfg.DedupKeyField
+		settings["dedup_key_field"] = *cfg.DedupKeyField
 	}
 	if len(cfg.Fields) > 0 {
 		settings["fields"] = cfg.Fields
 	}
 	if cfg.ReopenDuration != nil {
-		settings["reopenDuration"] = *cfg.ReopenDuration
+		settings["reopen_duration"] = *cfg.ReopenDuration
 	}
 	if cfg.ReopenTransition != nil {
-		settings["reopenTransition"] = *cfg.ReopenTransition
+		settings["reopen_transition"] = *cfg.ReopenTransition
 	}
 	if cfg.ResolveTransition != nil {
-		settings["resolveTransition"] = *cfg.ResolveTransition
+		settings["resolve_transition"] = *cfg.ResolveTransition
 	}
 	if cfg.WontFixResolution != nil {
-		settings["wontFixResolution"] = *cfg.WontFixResolution
+		settings["wont_fix_resolution"] = *cfg.WontFixResolution
 	}
 	mergeSettings(settings, cfg.Settings)
 	return "jira", settings, nil
