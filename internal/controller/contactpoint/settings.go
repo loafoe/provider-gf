@@ -592,26 +592,11 @@ func (e *external) buildWebhookOAuth2Config(ctx context.Context, cfg *v1alpha1.W
 	if len(cfg.EndpointParams) > 0 {
 		oauth2["endpoint_params"] = cfg.EndpointParams
 	}
-	// Proxy configuration
 	if cfg.ProxyConfig != nil {
-		proxyConfig := make(map[string]any)
-		if cfg.ProxyConfig.ProxyURL != nil {
-			proxyConfig["proxy_url"] = *cfg.ProxyConfig.ProxyURL
-		}
-		if cfg.ProxyConfig.ProxyFromEnvironment != nil {
-			proxyConfig["proxy_from_environment"] = *cfg.ProxyConfig.ProxyFromEnvironment
-		}
-		if cfg.ProxyConfig.NoProxy != nil {
-			proxyConfig["no_proxy"] = *cfg.ProxyConfig.NoProxy
-		}
-		if len(cfg.ProxyConfig.ProxyConnectHeader) > 0 {
-			proxyConfig["proxy_connect_header"] = cfg.ProxyConfig.ProxyConnectHeader
-		}
-		if len(proxyConfig) > 0 {
+		if proxyConfig := buildProxyConfig(cfg.ProxyConfig); len(proxyConfig) > 0 {
 			oauth2["proxy_config"] = proxyConfig
 		}
 	}
-	// TLS configuration for OAuth2
 	if cfg.TLSConfig != nil {
 		tlsConfig, err := e.buildWebhookTLSConfig(ctx, cfg.TLSConfig, ns)
 		if err != nil {
@@ -622,6 +607,23 @@ func (e *external) buildWebhookOAuth2Config(ctx context.Context, cfg *v1alpha1.W
 		}
 	}
 	return oauth2, nil
+}
+
+func buildProxyConfig(cfg *v1alpha1.WebhookProxyConfig) map[string]any {
+	proxyConfig := make(map[string]any)
+	if cfg.ProxyURL != nil {
+		proxyConfig["proxy_url"] = *cfg.ProxyURL
+	}
+	if cfg.ProxyFromEnvironment != nil {
+		proxyConfig["proxy_from_environment"] = *cfg.ProxyFromEnvironment
+	}
+	if cfg.NoProxy != nil {
+		proxyConfig["no_proxy"] = *cfg.NoProxy
+	}
+	if len(cfg.ProxyConnectHeader) > 0 {
+		proxyConfig["proxy_connect_header"] = cfg.ProxyConnectHeader
+	}
+	return proxyConfig
 }
 
 // mergeSettings merges custom settings into the settings map.
