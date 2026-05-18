@@ -370,6 +370,18 @@ func IsDashboardV2Content(configJSON []byte) bool {
 	return hasV2Elements || hasV2Layout || hasV2Variables
 }
 
+// sanitizeK8sName converts a string to a valid K8s metadata name.
+func sanitizeK8sName(s string) string {
+	s = strings.ToLower(strings.ReplaceAll(s, " ", "-"))
+	var sb strings.Builder
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			sb.WriteRune(r)
+		}
+	}
+	return strings.Trim(sb.String(), "-")
+}
+
 // WrapDashboardV2Content wraps unwrapped V2 dashboard content in the proper K8s-style envelope.
 // It takes the dashboard content and wraps it in the structure expected by the V2 API:
 //
@@ -387,23 +399,12 @@ func WrapDashboardV2Content(configJSON []byte, name string, folderUID string) ([
 		return nil, fmt.Errorf("failed to parse dashboard content: %w", err)
 	}
 
-	// Extract title for metadata name if not provided
 	if name == "" {
 		if title, ok := content["title"].(string); ok && title != "" {
-			// Convert title to a valid K8s name (lowercase, no spaces, etc.)
-			name = strings.ToLower(strings.ReplaceAll(title, " ", "-"))
-			// Remove any characters that aren't alphanumeric or hyphens
-			var sb strings.Builder
-			for _, r := range name {
-				if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
-					sb.WriteRune(r)
-				}
-			}
-			name = strings.Trim(sb.String(), "-")
+			name = sanitizeK8sName(title)
 		}
 	}
 
-	// Build the wrapped structure - use v2 API for Grafana 13+ content
 	wrapped := DashboardV2{
 		APIVersion: "dashboard.grafana.app/v2",
 		Kind:       "Dashboard",
@@ -413,7 +414,6 @@ func WrapDashboardV2Content(configJSON []byte, name string, folderUID string) ([
 		Spec: content,
 	}
 
-	// Set folder annotation if provided
 	if folderUID != "" {
 		wrapped.Metadata.Annotations = map[string]string{
 			DashboardV2AnnotationFolder: folderUID,
