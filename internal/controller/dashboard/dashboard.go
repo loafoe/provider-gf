@@ -271,10 +271,24 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 		return managed.ExternalObservation{}, errors.New(errNotDashboard)
 	}
 
-	// Check if using V2 API format
+	// Check if using V2 API format (either wrapped or unwrapped V2 content)
 	configJSON := []byte(cr.Spec.ForProvider.ConfigJSON)
 	if grafana.IsDashboardV2Format(configJSON) {
 		return e.observeV2(ctx, cr, configJSON)
+	}
+
+	// Check if using V2 content without wrapper (Grafana 13+ schema)
+	if grafana.IsDashboardV2Content(configJSON) {
+		// Wrap the content for V2 API
+		folderUID := ""
+		if cr.Spec.ForProvider.Folder != nil {
+			folderUID = *cr.Spec.ForProvider.Folder
+		}
+		wrappedJSON, err := grafana.WrapDashboardV2Content(configJSON, "", folderUID)
+		if err != nil {
+			return managed.ExternalObservation{}, errors.Wrap(err, "cannot wrap dashboard v2 content")
+		}
+		return e.observeV2(ctx, cr, wrappedJSON)
 	}
 
 	return e.observeV1(ctx, cr)
@@ -538,10 +552,24 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	cr.Status.SetConditions(xpv1.Creating())
 
-	// Check if using V2 API format
+	// Check if using V2 API format (either wrapped or unwrapped V2 content)
 	configJSON := []byte(cr.Spec.ForProvider.ConfigJSON)
 	if grafana.IsDashboardV2Format(configJSON) {
 		return e.createV2(ctx, cr, configJSON)
+	}
+
+	// Check if using V2 content without wrapper (Grafana 13+ schema)
+	if grafana.IsDashboardV2Content(configJSON) {
+		// Wrap the content for V2 API
+		folderUID := ""
+		if cr.Spec.ForProvider.Folder != nil {
+			folderUID = *cr.Spec.ForProvider.Folder
+		}
+		wrappedJSON, err := grafana.WrapDashboardV2Content(configJSON, "", folderUID)
+		if err != nil {
+			return managed.ExternalCreation{}, errors.Wrap(err, "cannot wrap dashboard v2 content")
+		}
+		return e.createV2(ctx, cr, wrappedJSON)
 	}
 
 	return e.createV1(ctx, cr)
@@ -666,10 +694,24 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errNotDashboard)
 	}
 
-	// Check if using V2 API format
+	// Check if using V2 API format (either wrapped or unwrapped V2 content)
 	configJSON := []byte(cr.Spec.ForProvider.ConfigJSON)
 	if grafana.IsDashboardV2Format(configJSON) {
 		return e.updateV2(ctx, cr, configJSON)
+	}
+
+	// Check if using V2 content without wrapper (Grafana 13+ schema)
+	if grafana.IsDashboardV2Content(configJSON) {
+		// Wrap the content for V2 API
+		folderUID := ""
+		if cr.Spec.ForProvider.Folder != nil {
+			folderUID = *cr.Spec.ForProvider.Folder
+		}
+		wrappedJSON, err := grafana.WrapDashboardV2Content(configJSON, "", folderUID)
+		if err != nil {
+			return managed.ExternalUpdate{}, errors.Wrap(err, "cannot wrap dashboard v2 content")
+		}
+		return e.updateV2(ctx, cr, wrappedJSON)
 	}
 
 	return e.updateV1(ctx, cr)

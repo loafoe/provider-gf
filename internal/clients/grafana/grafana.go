@@ -319,6 +319,110 @@ func IsDashboardV2Format(configJSON []byte) bool {
 	return strings.HasPrefix(partial.APIVersion, "dashboard.grafana.app/") && partial.Kind == "Dashboard"
 }
 
+// IsDashboardV2Content checks if the given JSON uses Grafana 13's V2 internal schema
+// but is missing the K8s-style wrapper (apiVersion, kind, metadata, spec).
+// This detects dashboards that have V2 content structure like "elements", "layout" with kinds,
+// "variables" with kinds, etc. - the new schema introduced in Grafana 13.
+func IsDashboardV2Content(configJSON []byte) bool {
+	var partial struct {
+		// V2 content indicators
+		Elements map[string]struct {
+			Kind string `json:"kind"`
+		} `json:"elements"`
+		Layout struct {
+			Kind string `json:"kind"`
+		} `json:"layout"`
+		Variables []struct {
+			Kind string `json:"kind"`
+		} `json:"variables"`
+		// V1 indicators (if these exist, it's V1 format)
+		Panels []any `json:"panels"`
+	}
+	if err := json.Unmarshal(configJSON, &partial); err != nil {
+		return false
+	}
+
+	// If it has panels array, it's V1 format
+	if len(partial.Panels) > 0 {
+		return false
+	}
+
+	// Check for V2 content indicators
+	hasV2Elements := false
+	for _, elem := range partial.Elements {
+		if elem.Kind != "" {
+			hasV2Elements = true
+			break
+		}
+	}
+
+	hasV2Layout := partial.Layout.Kind != ""
+
+	hasV2Variables := false
+	for _, v := range partial.Variables {
+		if v.Kind != "" {
+			hasV2Variables = true
+			break
+		}
+	}
+
+	// Consider it V2 content if it has elements with kinds, or layout with kind, or variables with kinds
+	return hasV2Elements || hasV2Layout || hasV2Variables
+}
+
+// WrapDashboardV2Content wraps unwrapped V2 dashboard content in the proper K8s-style envelope.
+// It takes the dashboard content and wraps it in the structure expected by the V2 API:
+//
+//	{
+//	  "apiVersion": "dashboard.grafana.app/v2",
+//	  "kind": "Dashboard",
+//	  "metadata": { "name": "<name>" },
+//	  "spec": { <content> }
+//	}
+//
+// Note: Uses "v2" as the API version for Grafana 13+ dashboards with the new schema.
+func WrapDashboardV2Content(configJSON []byte, name string, folderUID string) ([]byte, error) {
+	var content map[string]any
+	if err := json.Unmarshal(configJSON, &content); err != nil {
+		return nil, fmt.Errorf("failed to parse dashboard content: %w", err)
+	}
+
+	// Extract title for metadata name if not provided
+	if name == "" {
+		if title, ok := content["title"].(string); ok && title != "" {
+			// Convert title to a valid K8s name (lowercase, no spaces, etc.)
+			name = strings.ToLower(strings.ReplaceAll(title, " ", "-"))
+			// Remove any characters that aren't alphanumeric or hyphens
+			var sb strings.Builder
+			for _, r := range name {
+				if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+					sb.WriteRune(r)
+				}
+			}
+			name = strings.Trim(sb.String(), "-")
+		}
+	}
+
+	// Build the wrapped structure - use v2 API for Grafana 13+ content
+	wrapped := DashboardV2{
+		APIVersion: "dashboard.grafana.app/v2",
+		Kind:       "Dashboard",
+		Metadata: DashboardV2Metadata{
+			Name: name,
+		},
+		Spec: content,
+	}
+
+	// Set folder annotation if provided
+	if folderUID != "" {
+		wrapped.Metadata.Annotations = map[string]string{
+			DashboardV2AnnotationFolder: folderUID,
+		}
+	}
+
+	return json.Marshal(wrapped)
+}
+
 // GetDashboardV2APIVersion extracts the API version from the dashboard's apiVersion field.
 // Returns the version part (e.g., "v1beta1" from "dashboard.grafana.app/v1beta1").
 // Defaults to "v1beta1" if not found or invalid.
