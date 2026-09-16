@@ -229,15 +229,26 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, errors.Wrap(err, errNewClient)
 	}
 
+	// Pin already-created resources to their existing org so a Selector
+	// matching multiple Organizations can't drift them to a newly created one.
+	currentOrgID := ""
+	if en := meta.GetExternalName(cr); en != "" {
+		if oid, _, err := parseExternalName(en); err == nil {
+			currentOrgID = strconv.FormatInt(oid, 10)
+		}
+	}
+
 	// Resolve orgID from OrgRef/OrgSelector, direct OrgID, or ProviderConfig
 	orgID, err := common.ResolveOrgID(ctx, c.kube, cr,
 		cr.Spec.ForProvider.OrgRef,
 		cr.Spec.ForProvider.OrgSelector,
 		cr.Spec.ForProvider.OrgID,
-		pcSpec.OrgID)
+		pcSpec.OrgID,
+		currentOrgID)
 	if err != nil {
 		return nil, errors.Wrap(err, errResolveOrgRef)
 	}
+	gfClient.SetOrgID(orgID)
 
 	return &external{client: gfClient, orgID: orgID}, nil
 }

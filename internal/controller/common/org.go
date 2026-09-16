@@ -46,14 +46,23 @@ func ExtractOrgID() reference.ExtractValueFn {
 
 // ResolveOrgID resolves the organization ID from OrgRef/OrgSelector, direct OrgID, or ProviderConfig.
 // Returns the resolved orgID (defaults to 1 if nothing is specified).
-func ResolveOrgID(ctx context.Context, kube client.Client, mg resource.Managed, orgRef *xpv1.Reference, orgSelector *xpv1.Selector, directOrgID *int64, providerConfigOrgID *int64) (int64, error) {
+//
+// currentOrgID is the org ID (as a string) the resource has already resolved
+// to, if any - typically parsed from its external-name. Passing it pins an
+// already-created resource to its existing org: the underlying reference
+// resolver treats a non-empty CurrentValue as already-resolved and returns it
+// as-is instead of re-running Selector-based resolution. Without this pin, a
+// Selector matching multiple Organizations (e.g. a shared label) can silently
+// re-target every resource using it to a newly created Organization that also
+// matches, causing resources to be (re)created in the wrong org.
+func ResolveOrgID(ctx context.Context, kube client.Client, mg resource.Managed, orgRef *xpv1.Reference, orgSelector *xpv1.Selector, directOrgID *int64, providerConfigOrgID *int64, currentOrgID string) (int64, error) {
 	orgID := int64(1)
 
 	switch {
 	case orgRef != nil || orgSelector != nil:
 		// Try to resolve org reference first
 		rsp, err := reference.NewAPIResolver(kube, mg).Resolve(ctx, reference.ResolutionRequest{
-			CurrentValue: "",
+			CurrentValue: currentOrgID,
 			Reference:    orgRef,
 			Selector:     orgSelector,
 			To:           reference.To{Managed: &v1alpha1.Organization{}, List: &v1alpha1.OrganizationList{}},

@@ -135,14 +135,26 @@ func (c *connector) Connect(ctx context.Context, mg resource.Managed) (managed.E
 		return nil, err
 	}
 
+	// Pin already-created resources to their existing org so a Selector
+	// matching multiple Organizations can't drift them to a newly created one.
+	// NotificationPolicy's external name IS the org ID (no compound format).
+	currentOrgID := ""
+	if en := meta.GetExternalName(cr); en != "" {
+		if _, err := strconv.ParseInt(en, 10, 64); err == nil {
+			currentOrgID = en
+		}
+	}
+
 	orgID, err := common.ResolveOrgID(ctx, c.kube, cr,
 		cr.Spec.ForProvider.OrgRef,
 		cr.Spec.ForProvider.OrgSelector,
 		cr.Spec.ForProvider.OrgID,
-		pc.Spec.OrgID)
+		pc.Spec.OrgID,
+		currentOrgID)
 	if err != nil {
 		return nil, errors.Wrap(err, errResolveOrgRef)
 	}
+	gfClient.SetOrgID(orgID)
 
 	return &external{client: gfClient, kube: c.kube, orgID: orgID}, nil
 }

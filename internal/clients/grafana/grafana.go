@@ -99,14 +99,33 @@ func NewClient(cfg Config) (*Client, error) {
 		return nil, fmt.Errorf("either token or username/password must be provided")
 	}
 
+	// An unset OrgID must default to the Grafana default org (1), not to no
+	// header at all - omitting the header lets Grafana fall back to the
+	// authenticated user's ambient, stateful "current org" for Basic Auth,
+	// which drifts independently of this provider (e.g. a human admin
+	// switching org in the UI with the same account).
+	orgID := cfg.OrgID
+	if orgID == nil {
+		defaultOrgID := int64(1)
+		orgID = &defaultOrgID
+	}
+
 	return &Client{
 		baseURL: baseURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
 		authHeader: authHeader,
-		orgID:      cfg.OrgID,
+		orgID:      orgID,
 	}, nil
+}
+
+// SetOrgID overrides the organization ID used for subsequent requests.
+// This is used when a resource resolves its org via orgRef/orgSelector/
+// spec.forProvider.orgId, which may differ from the ProviderConfig default
+// the client was originally constructed with.
+func (c *Client) SetOrgID(orgID int64) {
+	c.orgID = &orgID
 }
 
 // doRequest performs an HTTP request with authentication.

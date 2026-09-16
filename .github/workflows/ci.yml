@@ -177,6 +177,9 @@ jobs:
     runs-on: ubuntu-22.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Setup QEMU
@@ -197,6 +200,13 @@ jobs:
           registry: xpkg.upbound.io
           username: ${{ secrets.UPBOUND_MARKETPLACE_PUSH_ROBOT_USR }}
           password: ${{ secrets.UPBOUND_MARKETPLACE_PUSH_ROBOT_PSW }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -248,3 +258,8 @@ jobs:
       - name: Publish Artifacts
         if: env.UPBOUND_MARKETPLACE_PUSH_ROBOT_USR != ''
         run: make publish BRANCH_NAME=${GITHUB_REF##*/}
+
+      - name: Publish Artifacts to GHCR
+        run: make publish BRANCH_NAME=${GITHUB_REF##*/}
+        env:
+          XPKG_REG_ORGS: ghcr.io/${{ github.repository_owner }}
