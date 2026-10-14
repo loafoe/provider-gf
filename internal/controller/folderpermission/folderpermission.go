@@ -346,7 +346,13 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	cr.Status.AtProvider.Permissions = observedPerms
 
 	// Check if up to date by comparing desired vs observed permissions
-	isUpToDate := e.isUpToDate(cr, permissions)
+	desired, err := e.resolvePermissions(ctx, cr)
+	if err != nil {
+		// An unresolvable teamRef must not be treated as drift: Update would
+		// then strip the team's permission and leave it unapplied.
+		return managed.ExternalObservation{}, err
+	}
+	isUpToDate := e.isUpToDate(desired, permissions)
 
 	cr.Status.SetConditions(xpv1.Available())
 
@@ -356,9 +362,30 @@ func (e *external) Observe(ctx context.Context, mg resource.Managed) (managed.Ex
 	}, nil
 }
 
-func (e *external) isUpToDate(cr *v1alpha1.FolderPermission, observed []grafana.FolderPermissionItem) bool {
-	desired := cr.Spec.ForProvider.Permissions
+// resolvePermissions returns the spec's permissions with every teamRef and
+// teamSelector resolved to a teamId, so the rest of the reconciler only ever
+// deals with concrete IDs. An explicit teamId always wins over a reference.
+func (e *external) resolvePermissions(ctx context.Context, cr *v1alpha1.FolderPermission) ([]v1alpha1.FolderPermissionItem, error) {
+	items := make([]v1alpha1.FolderPermissionItem, len(cr.Spec.ForProvider.Permissions))
+	copy(items, cr.Spec.ForProvider.Permissions)
 
+	for i := range items {
+		p := &items[i]
+		if p.TeamID != nil || (p.TeamRef == nil && p.TeamSelector == nil) {
+			continue
+		}
+		teamID, err := common.ResolveTeamID(ctx, e.kube, cr, p.TeamRef, p.TeamSelector)
+		if err != nil {
+			return nil, err
+		}
+		p.TeamID = &teamID
+		p.TeamRef, p.TeamSelector = nil, nil
+	}
+
+	return items, nil
+}
+
+func (e *external) isUpToDate(desired []v1alpha1.FolderPermissionItem, observed []grafana.FolderPermissionItem) bool {
 	// Build sets for comparison
 	desiredSet := make(map[string]int) // key -> permission level
 	for _, p := range desired {
@@ -426,8 +453,13 @@ func (e *external) Create(ctx context.Context, mg resource.Managed) (managed.Ext
 
 	cr.Status.SetConditions(xpv1.Creating())
 
+	items, err := e.resolvePermissions(ctx, cr)
+	if err != nil {
+		return managed.ExternalCreation{}, err
+	}
+
 	// Build permission request
-	req := e.buildPermissionRequest(cr)
+	req := e.buildPermissionRequest(items)
 
 	// Set permissions
 	if err := e.client.SetFolderPermissions(ctx, e.folderUID, req); err != nil {
@@ -450,8 +482,13 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 		return managed.ExternalUpdate{}, errors.New(errMissingFolder)
 	}
 
+	items, err := e.resolvePermissions(ctx, cr)
+	if err != nil {
+		return managed.ExternalUpdate{}, err
+	}
+
 	// Build permission request
-	req := e.buildPermissionRequest(cr)
+	req := e.buildPermissionRequest(items)
 
 	// Set permissions (replaces all existing)
 	if err := e.client.SetFolderPermissions(ctx, e.folderUID, req); err != nil {
@@ -461,10 +498,10 @@ func (e *external) Update(ctx context.Context, mg resource.Managed) (managed.Ext
 	return managed.ExternalUpdate{}, nil
 }
 
-func (e *external) buildPermissionRequest(cr *v1alpha1.FolderPermission) grafana.FolderPermissionRequest {
-	items := make([]grafana.FolderPermissionRequestItem, 0, len(cr.Spec.ForProvider.Permissions))
+func (e *external) buildPermissionRequest(items []v1alpha1.FolderPermissionItem) grafana.FolderPermissionRequest {
+	reqItems := make([]grafana.FolderPermissionRequestItem, 0, len(items))
 
-	for _, p := range cr.Spec.ForProvider.Permissions {
+	for _, p := range items {
 		item := grafana.FolderPermissionRequestItem{
 			Permission: grafana.PermissionNameToLevel(p.Permission),
 		}
@@ -477,10 +514,10 @@ func (e *external) buildPermissionRequest(cr *v1alpha1.FolderPermission) grafana
 		if p.UserID != nil {
 			item.UserID = *p.UserID
 		}
-		items = append(items, item)
+		reqItems = append(reqItems, item)
 	}
 
-	return grafana.FolderPermissionRequest{Items: items}
+	return grafana.FolderPermissionRequest{Items: reqItems}
 }
 
 func (e *external) Delete(ctx context.Context, mg resource.Managed) (managed.ExternalDelete, error) {

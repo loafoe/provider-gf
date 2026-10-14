@@ -39,9 +39,20 @@ type PermissionItem struct {
 	// +optional
 	Role *string `json:"role,omitempty"`
 
-	// TeamID is the ID of the team to manage permissions for.
+	// TeamID is the ID of the team to manage permissions for. Ignored when
+	// TeamRef or TeamSelector is set.
 	// +optional
 	TeamID *int64 `json:"teamId,omitempty"`
+
+	// TeamRef is a reference to a Team resource to populate teamId. Preferred
+	// over TeamID, which is not checked against any Team resource and so goes
+	// stale if the team is recreated with a new ID.
+	// +optional
+	TeamRef *xpv1.Reference `json:"teamRef,omitempty"`
+
+	// TeamSelector selects a Team resource to populate teamId.
+	// +optional
+	TeamSelector *xpv1.Selector `json:"teamSelector,omitempty"`
 
 	// UserID is the ID of the user to manage permissions for.
 	// +optional

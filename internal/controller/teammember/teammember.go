@@ -40,7 +40,6 @@ import (
 	apisv1alpha1 "github.com/crossplane/provider-gf/apis/v1alpha1"
 	"github.com/crossplane/provider-gf/internal/clients/grafana"
 	"github.com/crossplane/provider-gf/internal/controller/common"
-	"github.com/crossplane/provider-gf/internal/controller/team"
 )
 
 const (
@@ -209,7 +208,7 @@ func (c *connector) resolveTeamID(ctx context.Context, cr *v1alpha1.TeamMember) 
 			Reference:    fp.TeamRef,
 			Selector:     fp.TeamSelector,
 			To:           reference.To{Managed: &v1alpha1.Team{}, List: &v1alpha1.TeamList{}},
-			Extract:      team.ExtractTeamID(),
+			Extract:      common.ExtractTeamID(),
 			Namespace:    cr.GetNamespace(),
 		})
 		if err == nil && rsp.ResolvedValue != "" {

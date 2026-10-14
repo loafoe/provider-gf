@@ -205,7 +205,7 @@ func (c *connector) resolveTeamID(ctx context.Context, cr *v1alpha1.TeamPreferen
 			Reference:    fp.TeamRef,
 			Selector:     fp.TeamSelector,
 			To:           reference.To{Managed: &v1alpha1.Team{}, List: &v1alpha1.TeamList{}},
-			Extract:      team.ExtractTeamID(),
+			Extract:      common.ExtractTeamID(),
 			Namespace:    cr.GetNamespace(),
 		})
 		if err == nil && rsp.ResolvedValue != "" {

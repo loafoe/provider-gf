@@ -63,12 +63,37 @@ spec:
   forProvider:
     dashboardUid: "example-uid"
     permissions:
-      # Grant View permission to a specific team
-      - teamId: 1
+      # Grant View permission to a team, referenced by name so the grant
+      # follows the Team if it is recreated with a new ID
+      - teamRef:
+          name: platform-team
         permission: View
+      # Grant Edit permission to a team selected by label
+      - teamSelector:
+          matchLabels:
+            grafana.example.com/team: security
+        permission: Edit
       # Grant Edit permission to a specific user
       - userId: 2
         permission: Edit
       # Grant Admin permission to Admin role
       - role: Admin
         permission: Admin
+
+# Granting to a team by literal ID still works, but nothing verifies the ID
+# still refers to the team you mean.
+---
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: DashboardPermission
+metadata:
+  name: team-dashboard-permissions-by-id
+  namespace: default
+spec:
+  providerConfigRef:
+    kind: ProviderConfig
+    name: grafana-config
+  forProvider:
+    dashboardUid: "example-uid"
+    permissions:
+      - teamId: 1
+        permission: View

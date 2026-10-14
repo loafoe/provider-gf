@@ -106,6 +106,51 @@ func CleanupTeam(t *testing.T, c *grafana.Client, teamID int64) {
 	})
 }
 
+// CreateFolder creates a folder for the test and deletes it during cleanup.
+// A folder with a team permission cannot be deleted while the team exists, so
+// permissions are expected to be cleaned up by the test first.
+func CreateFolder(t *testing.T, c *grafana.Client, title string) string {
+	t.Helper()
+
+	folder, err := c.CreateFolder(t.Context(), grafana.FolderCreateRequest{Title: title})
+	if err != nil {
+		t.Fatalf("CreateFolder(%q) error = %v", title, err)
+	}
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := c.DeleteFolderByUID(ctx, folder.UID); err != nil {
+			t.Logf("cleanup DeleteFolder(%q) error = %v", folder.UID, err)
+		}
+	})
+	return folder.UID
+}
+
+// CreateDashboard creates a dashboard in a folder and deletes it during cleanup.
+func CreateDashboard(t *testing.T, c *grafana.Client, title, folderUID string) string {
+	t.Helper()
+
+	resp, err := c.CreateOrUpdateDashboard(t.Context(), grafana.DashboardCreateRequest{
+		Dashboard: []byte(`{"title":"` + title + `","panels":[]}`),
+		FolderUID: folderUID,
+	})
+	if err != nil {
+		t.Fatalf("CreateOrUpdateDashboard(%q) error = %v", title, err)
+	}
+
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := c.DeleteDashboardByUID(ctx, resp.UID); err != nil {
+			t.Logf("cleanup DeleteDashboard(%q) error = %v", resp.UID, err)
+		}
+	})
+	return resp.UID
+}
+
 // MemberIDs returns the user IDs currently in a team.
 func MemberIDs(t *testing.T, c *grafana.Client, teamID int64) []int64 {
 	t.Helper()

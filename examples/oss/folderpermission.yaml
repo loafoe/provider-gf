@@ -63,8 +63,9 @@ spec:
   forProvider:
     folderUid: "example-uid"
     permissions:
-      # Grant View permission to a specific team
-      - teamId: 1
+      # Grant View permission to a team, referenced by name
+      - teamRef:
+          name: platform-team
         permission: View
       # Grant Edit permission to a specific user
       - userId: 2

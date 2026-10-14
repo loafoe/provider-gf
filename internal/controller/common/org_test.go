@@ -113,3 +113,41 @@ func TestResolveOrgID_ResolvesViaSelectorWhenNotYetCreated(t *testing.T) {
 		t.Errorf("ResolveOrgID() = %d, want 7", orgID)
 	}
 }
+
+func TestExtractTeamID(t *testing.T) {
+	id := int64(7)
+	withStatus := &v1alpha1.Team{Status: v1alpha1.TeamStatus{AtProvider: v1alpha1.TeamObservation{ID: &id}}}
+	if got := ExtractTeamID()(withStatus); got != "7" {
+		t.Errorf("ExtractTeamID() from status = %q, want %q", got, "7")
+	}
+
+	// A Team that hasn't been observed yet still has an external name.
+	withExternalName := &v1alpha1.Team{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+		"crossplane.io/external-name": "42:7",
+	}}}
+	if got := ExtractTeamID()(withExternalName); got != "7" {
+		t.Errorf("ExtractTeamID() from external-name = %q, want %q", got, "7")
+	}
+
+	if got := ExtractTeamID()(&v1alpha1.Team{}); got != "" {
+		t.Errorf("ExtractTeamID() unresolved = %q, want empty", got)
+	}
+	if got := ExtractTeamID()(&v1alpha1.Folder{}); got != "" {
+		t.Errorf("ExtractTeamID() wrong type = %q, want empty", got)
+	}
+	// A non-numeric team segment must not be handed on as an ID.
+	nonNumeric := &v1alpha1.Team{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+		"crossplane.io/external-name": "42:team",
+	}}}
+	if got := ExtractTeamID()(nonNumeric); got != "" {
+		t.Errorf("ExtractTeamID() non-numeric = %q, want empty", got)
+	}
+}
+
+// ResolveTeamID is only ever called when a ref or selector is present, so a
+// bare call is a programming error rather than a user-facing one.
+func TestResolveTeamID_RequiresReference(t *testing.T) {
+	if _, err := ResolveTeamID(t.Context(), nil, &v1alpha1.Team{}, nil, nil); err == nil {
+		t.Error("ResolveTeamID() error = nil, want an error when neither ref nor selector is set")
+	}
+}

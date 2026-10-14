@@ -28,7 +28,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/v2/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/ratelimiter"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/reconciler/managed"
-	"github.com/crossplane/crossplane-runtime/v2/pkg/reference"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/v2/pkg/statemetrics"
 	"github.com/pkg/errors"
@@ -71,24 +70,6 @@ func ParseExternalName(externalName string) (int64, int64, error) {
 		return 0, 0, errors.Wrap(err, errInvalidExternals)
 	}
 	return orgID, teamID, nil
-}
-
-// ExtractTeamID extracts the numeric team ID from a Team resource.
-func ExtractTeamID() reference.ExtractValueFn {
-	return func(mg resource.Managed) string {
-		tm, ok := mg.(*v1alpha1.Team)
-		if !ok {
-			return ""
-		}
-		if tm.Status.AtProvider.ID != nil {
-			return strconv.FormatInt(*tm.Status.AtProvider.ID, 10)
-		}
-		_, teamID, err := ParseExternalName(meta.GetExternalName(tm))
-		if err != nil {
-			return ""
-		}
-		return strconv.FormatInt(teamID, 10)
-	}
 }
 
 // Setup adds a controller that reconciles Team managed resources.

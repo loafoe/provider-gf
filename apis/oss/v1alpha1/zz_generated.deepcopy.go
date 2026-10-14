@@ -835,6 +835,16 @@ func (in *FolderPermissionItem) DeepCopyInto(out *FolderPermissionItem) {
 		*out = new(int64)
 		**out = **in
 	}
+	if in.TeamRef != nil {
+		in, out := &in.TeamRef, &out.TeamRef
+		*out = new(v1.Reference)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.TeamSelector != nil {
+		in, out := &in.TeamSelector, &out.TeamSelector
+		*out = new(v1.Selector)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.UserID != nil {
 		in, out := &in.UserID, &out.UserID
 		*out = new(int64)
@@ -1464,6 +1474,16 @@ func (in *PermissionItem) DeepCopyInto(out *PermissionItem) {
 		in, out := &in.TeamID, &out.TeamID
 		*out = new(int64)
 		**out = **in
+	}
+	if in.TeamRef != nil {
+		in, out := &in.TeamRef, &out.TeamRef
+		*out = new(v1.Reference)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.TeamSelector != nil {
+		in, out := &in.TeamSelector, &out.TeamSelector
+		*out = new(v1.Selector)
+		(*in).DeepCopyInto(*out)
 	}
 	if in.UserID != nil {
 		in, out := &in.UserID, &out.UserID

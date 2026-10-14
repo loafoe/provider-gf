@@ -19,8 +19,6 @@ package team
 import (
 	"testing"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/crossplane/provider-gf/apis/oss/v1alpha1"
 	"github.com/crossplane/provider-gf/internal/clients/grafana"
 )
@@ -150,27 +148,5 @@ func TestIsUpToDate(t *testing.T) {
 				t.Errorf("isUpToDate() = %v, want %v", got, tc.wantUpTo)
 			}
 		})
-	}
-}
-
-func TestExtractTeamID(t *testing.T) {
-	id := int64(7)
-	withStatus := &v1alpha1.Team{Status: v1alpha1.TeamStatus{AtProvider: v1alpha1.TeamObservation{ID: &id}}}
-	if got := ExtractTeamID()(withStatus); got != "7" {
-		t.Errorf("ExtractTeamID() from status = %q, want %q", got, "7")
-	}
-
-	withExternalName := &v1alpha1.Team{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
-		"crossplane.io/external-name": "42:7",
-	}}}
-	if got := ExtractTeamID()(withExternalName); got != "7" {
-		t.Errorf("ExtractTeamID() from external-name = %q, want %q", got, "7")
-	}
-
-	if got := ExtractTeamID()(&v1alpha1.Team{}); got != "" {
-		t.Errorf("ExtractTeamID() unresolved = %q, want empty", got)
-	}
-	if got := ExtractTeamID()(&v1alpha1.Folder{}); got != "" {
-		t.Errorf("ExtractTeamID() wrong type = %q, want empty", got)
 	}
 }

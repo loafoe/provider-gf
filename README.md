@@ -255,10 +255,34 @@ spec:
       - permission: "Edit"
         role: "Editor"
       - permission: "View"
-        teamId: 12345
+        teamRef:
+          name: platform-team
   write: true
   overwrite: true
 ```
+
+Permissions that aren't listed are removed — the resource owns the whole set.
+
+### Granting Access to Teams
+
+Both `DashboardPermission` and `FolderPermission` can grant access to a team.
+Reference it rather than hardcoding its ID, so the grant follows the team if it
+is recreated with a new ID:
+
+```yaml
+permissions:
+  - teamRef:
+      name: platform-team        # by name
+    permission: Edit
+  - teamSelector:
+      matchLabels:
+        grafana.example.com/team: security
+    permission: View
+```
+
+A literal `teamId` still works and takes precedence over a reference, but
+nothing checks that it still refers to the team you meant — if the team is
+deleted and a new one reuses the ID, the grant silently moves.
 
 ### Creating a Team
 

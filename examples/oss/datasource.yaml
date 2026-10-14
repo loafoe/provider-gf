@@ -88,7 +88,7 @@ spec:
       {
         "httpMethod": "POST"
       }
-    secureJSONDataEncodedSecretRef:
+    secureJsonDataEncodedSecretRef:
       name: prometheus-credentials
       namespace: default
       key: secureJsonData
