@@ -332,6 +332,19 @@ spec:
 All resources use `<orgId>:<uid>` format except:
 - `NotificationPolicy`: Uses just `<orgId>` (one per org)
 - `RuleGroup`: Uses `<orgId>:<folderUid>:<groupName>`
+- `Organization`: Uses just `<orgId>`
+- `Team`: Uses `<orgId>:<teamId>` (numeric team ID)
+- `TeamPreference`: Uses `<orgId>:<teamId>` (one per team)
+- `TeamMember`: Uses `<orgId>:<teamId>:<userId>`
+
+For child resources (`TeamMember`, `TeamPreference`) the parent ID is resolved
+from `teamRef`/`teamSelector`/`teamId` in `Connect()`, with a fallback to the
+external name so `Delete()` still works once the parent is gone. Export the
+parent's ID extractor (e.g. `team.ExtractTeamID()`) from the parent's package
+rather than duplicating the parsing.
+
+Grafana identifies teams by numeric ID, not UID, so `ParseExternalName` must
+return an `int64` for these resources.
 
 ### Reference Resolution
 

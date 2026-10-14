@@ -34,6 +34,30 @@ go.test.unit.fixed:
 test.run: go.test.unit.fixed
 
 # ====================================================================================
+# Live Grafana tests
+#
+# Exercises the controllers against a real Grafana instance. Skipped by
+# `make test`; point these at a throwaway instance or an org you don't mind
+# mutating - the tests create and delete teams, and add/remove real users.
+#
+#	make test-live GRAFANA_URL=https://grafana.example.com GRAFANA_TOKEN=glsa_...
+
+GRAFANA_URL   ?=
+GRAFANA_TOKEN ?=
+GRAFANA_ORG_ID ?= 1
+
+test-live:
+	@if [ -z "$(GRAFANA_URL)" ] || [ -z "$(GRAFANA_TOKEN)" ]; then \
+		echo "GRAFANA_URL and GRAFANA_TOKEN are required"; exit 1; \
+	fi
+	@echo "$(INFO) running live tests against $(GRAFANA_URL) (org $(GRAFANA_ORG_ID))"
+	@GRAFANA_URL="$(GRAFANA_URL)" GRAFANA_TOKEN="$(GRAFANA_TOKEN)" GRAFANA_ORG_ID="$(GRAFANA_ORG_ID)" \
+		$(GOHOST) test -count=1 -run 'TestLive' ./internal/... 2>&1 | tee /dev/stderr | grep -v 'no test files'
+	@echo "$(OK) live tests passed"
+
+.PHONY: test-live
+
+# ====================================================================================
 # Setup Kubernetes tools
 
 -include build/makelib/k8s_tools.mk

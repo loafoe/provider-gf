@@ -1,0 +1,51 @@
+# Add a user to a team, resolving the team by reference.
+# Leaving members/admins unset on the Team resource lets TeamMember own
+# membership instead - don't set both, or the two will fight.
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamMember
+metadata:
+  name: platform-sre-oncall
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    teamRef:
+      name: platform-team
+    loginOrEmail: sre-oncall@example.com
+
+---
+# Add a user by numeric Grafana user ID (preferred - it's stable, whereas a
+# login or email address can be changed).
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamMember
+metadata:
+  name: platform-service-account
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    teamRef:
+      name: platform-team
+    userId: 12
+
+---
+# Add a user to a team in a specific organization, selecting the team by label.
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamMember
+metadata:
+  name: selected-team-member
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    teamSelector:
+      matchLabels:
+        grafana.example.com/team: security
+    userId: 34
+    orgId: 2

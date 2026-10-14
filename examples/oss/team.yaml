@@ -1,0 +1,51 @@
+# Basic team example
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Team
+metadata:
+  name: platform-team
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    name: "Platform"
+    email: "platform@example.com"
+
+---
+# Team that owns its own membership. Users must already exist in Grafana.
+# Setting members or admins makes the whole membership set authoritative:
+# anyone not listed in either field is removed from the team.
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Team
+metadata:
+  name: security-team
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    name: "Security"
+    email: "security@example.com"
+    admins:
+      - security-lead@example.com
+    members:
+      - analyst1@example.com
+      - analyst2@example.com
+
+---
+# Team in a specific organization (using orgRef)
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Team
+metadata:
+  name: team-with-org-ref
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    name: "Team with Org Ref"
+    orgRef:
+      name: example-org

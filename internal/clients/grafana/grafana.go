@@ -1471,33 +1471,39 @@ func (c *Client) RemoveOrgUser(ctx context.Context, orgID, userID int64) error {
 	return nil
 }
 
-// GetUserByLoginOrEmail gets a user by their login or email.
+// GetUserByLoginOrEmail finds a user in the current organization whose login
+// or email matches loginOrEmail. The match is case-insensitive.
+//
+// This deliberately uses /api/orgs/:orgId/users rather than /api/users/lookup.
+// The lookup endpoint requires the instance-wide users:read permission, which
+// no basic role grants and which service accounts cannot hold at all - Grafana
+// reserves global user management for server administrators. Reading the org's
+// user list needs only org.users:read, which the Admin role does grant.
+//
+// It is also the more correct scope: Grafana refuses to add a user to a team
+// unless they are already a member of the organization, so a user outside the
+// org is never a valid result.
+//
+// Returns nil when no user in the org matches.
 func (c *Client) GetUserByLoginOrEmail(ctx context.Context, loginOrEmail string) (*OrgUser, error) {
-	resp, err := c.doRequest(ctx, http.MethodGet, "/api/users/lookup?loginOrEmail="+loginOrEmail, nil)
+	orgID := int64(1)
+	if c.orgID != nil {
+		orgID = *c.orgID
+	}
+
+	users, err := c.GetOrgUsers(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("failed to look up user: %w", err)
 	}
 
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, nil // User doesn't exist
+	want := strings.ToLower(loginOrEmail)
+	for i := range users {
+		if strings.EqualFold(users[i].Login, want) || strings.EqualFold(users[i].Email, want) {
+			return &users[i], nil
+		}
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to get user: status=%d, body=%s", resp.StatusCode, string(body))
-	}
-
-	var user OrgUser
-	if err := json.Unmarshal(body, &user); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	return &user, nil
+	return nil, nil // Not found
 }
 
 // DashboardPermissionItem represents a single permission entry for a dashboard.
@@ -1949,6 +1955,394 @@ func (c *Client) SetNotificationPolicy(ctx context.Context, policy NotificationP
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted && resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("failed to set notification policy: status=%d, body=%s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}
+
+// ============================================================================
+// Teams API
+// ============================================================================
+
+// Team represents a Grafana team.
+type Team struct {
+	ID          int64  `json:"id,omitempty"`
+	UID         string `json:"uid,omitempty"`
+	OrgID       int64  `json:"orgId,omitempty"`
+	Name        string `json:"name"`
+	Email       string `json:"email,omitempty"`
+	AvatarURL   string `json:"avatarUrl,omitempty"`
+	MemberCount int64  `json:"memberCount,omitempty"`
+	Created     string `json:"created,omitempty"`
+	Updated     string `json:"updated,omitempty"`
+}
+
+// TeamCreateRequest represents a request to create a team.
+type TeamCreateRequest struct {
+	Name  string `json:"name"`
+	Email string `json:"email,omitempty"`
+}
+
+// TeamCreateResponse represents the response from creating a team.
+type TeamCreateResponse struct {
+	Message string `json:"message"`
+	TeamID  int64  `json:"teamId"`
+	UID     string `json:"uid,omitempty"`
+}
+
+// TeamSearchResponse represents a page of team search results.
+type TeamSearchResponse struct {
+	TotalCount int64  `json:"totalCount"`
+	Teams      []Team `json:"teams"`
+	Page       int64  `json:"page,omitempty"`
+	PerPage    int64  `json:"perPage,omitempty"`
+}
+
+// TeamMember represents a member of a Grafana team.
+type TeamMember struct {
+	OrgID     int64  `json:"orgId,omitempty"`
+	TeamID    int64  `json:"teamId,omitempty"`
+	UserID    int64  `json:"userId,omitempty"`
+	Email     string `json:"email,omitempty"`
+	Login     string `json:"login,omitempty"`
+	AvatarURL string `json:"avatarUrl,omitempty"`
+	AuthID    string `json:"authId,omitempty"`
+	External  bool   `json:"external,omitempty"`
+}
+
+// TeamMemberAddRequest represents a request to add a single team member.
+// Exactly one of UserID or LoginOrEmail should be set.
+type TeamMemberAddRequest struct {
+	UserID       int64  `json:"userId,omitempty"`
+	LoginOrEmail string `json:"loginOrEmail,omitempty"`
+}
+
+// TeamMembersRequest represents a bulk membership update for a team. It
+// replaces the full membership set: members not listed are removed.
+type TeamMembersRequest struct {
+	Members []string `json:"members,omitempty"`
+	Admins  []string `json:"admins,omitempty"`
+}
+
+// TeamPreferences represents the preferences of a Grafana team.
+type TeamPreferences struct {
+	Theme            string `json:"theme"`
+	Timezone         string `json:"timezone"`
+	HomeDashboardID  int64  `json:"homeDashboardId,omitempty"`
+	HomeDashboardUID string `json:"homeDashboardUID,omitempty"`
+}
+
+// CreateTeam creates a new team.
+func (c *Client) CreateTeam(ctx context.Context, req TeamCreateRequest) (*TeamCreateResponse, error) {
+	resp, err := c.doRequest(ctx, http.MethodPost, "/api/teams", req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create team: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, newAPIError(resp.StatusCode, body)
+	}
+
+	var teamResp TeamCreateResponse
+	if err := json.Unmarshal(body, &teamResp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &teamResp, nil
+}
+
+// UpdateTeam updates the name and email of an existing team.
+func (c *Client) UpdateTeam(ctx context.Context, teamID int64, req TeamCreateRequest) error {
+	resp, err := c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/api/teams/%d", teamID), req)
+	if err != nil {
+		return fmt.Errorf("failed to update team: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return newAPIError(resp.StatusCode, body)
+	}
+
+	return nil
+}
+
+// GetTeamByID gets a team by its numeric ID. It returns nil if the team
+// does not exist.
+func (c *Client) GetTeamByID(ctx context.Context, teamID int64) (*Team, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/api/teams/%d", teamID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get team: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Team doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, newAPIError(resp.StatusCode, body)
+	}
+
+	var team Team
+	if err := json.Unmarshal(body, &team); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &team, nil
+}
+
+// GetTeamByName gets a team by its exact name. It returns nil if no team
+// with that name exists.
+func (c *Client) GetTeamByName(ctx context.Context, name string) (*Team, error) {
+	teams, err := c.searchTeams(ctx, "name="+url.QueryEscape(name))
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range teams {
+		if teams[i].Name == name {
+			return &teams[i], nil
+		}
+	}
+
+	return nil, nil // Not found
+}
+
+// SearchTeams returns the teams in the organization whose name contains query.
+// An empty query returns all teams.
+func (c *Client) SearchTeams(ctx context.Context, query string) ([]Team, error) {
+	if query == "" {
+		return c.searchTeams(ctx, "")
+	}
+	return c.searchTeams(ctx, "query="+url.QueryEscape(query))
+}
+
+func (c *Client) searchTeams(ctx context.Context, params string) ([]Team, error) {
+	path := "/api/teams/search?perpage=1000&page=1"
+	if params != "" {
+		path += "&" + params
+	}
+
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search teams: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, newAPIError(resp.StatusCode, body)
+	}
+
+	var search TeamSearchResponse
+	if err := json.Unmarshal(body, &search); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return search.Teams, nil
+}
+
+// DeleteTeam deletes a team by its numeric ID.
+func (c *Client) DeleteTeam(ctx context.Context, teamID int64) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/teams/%d", teamID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete team: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil // Already gone
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return newAPIError(resp.StatusCode, body)
+	}
+
+	return nil
+}
+
+// GetTeamMembers returns all members of a team.
+func (c *Client) GetTeamMembers(ctx context.Context, teamID int64) ([]TeamMember, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/api/teams/%d/members", teamID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get team members: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Team doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, newAPIError(resp.StatusCode, body)
+	}
+
+	var members []TeamMember
+	if err := json.Unmarshal(body, &members); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return members, nil
+}
+
+// errTeamMemberExists is the message Grafana returns when adding a user who
+// is already in the team.
+const errTeamMemberExists = "User is already added to this team"
+
+// AddTeamMember adds a single user to a team.
+//
+// Grafana answers 400 "User is already added to this team" when the user is
+// already a member. Observe checks membership first, but that leaves a window
+// for a member added in between to fail Create, so an already-present member
+// is reported as success rather than an error.
+func (c *Client) AddTeamMember(ctx context.Context, teamID int64, req TeamMemberAddRequest) error {
+	resp, err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/api/teams/%d/members", teamID), req)
+	if err != nil {
+		return fmt.Errorf("failed to add team member: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		apiErr := newAPIError(resp.StatusCode, body)
+		if apiErr.StatusCode == http.StatusBadRequest && apiErr.Message == errTeamMemberExists {
+			return nil
+		}
+		return apiErr
+	}
+
+	return nil
+}
+
+// RemoveTeamMember removes a single user from a team.
+func (c *Client) RemoveTeamMember(ctx context.Context, teamID, userID int64) error {
+	resp, err := c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/teams/%d/members/%d", teamID, userID), nil)
+	if err != nil {
+		return fmt.Errorf("failed to remove team member: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil // Already gone
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return newAPIError(resp.StatusCode, body)
+	}
+
+	return nil
+}
+
+// SetTeamMembers replaces the full membership of a team. Members and admins
+// are matched by email address; anyone not listed is removed from the team.
+func (c *Client) SetTeamMembers(ctx context.Context, teamID int64, req TeamMembersRequest) error {
+	resp, err := c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/api/teams/%d/members", teamID), req)
+	if err != nil {
+		return fmt.Errorf("failed to set team members: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return newAPIError(resp.StatusCode, body)
+	}
+
+	return nil
+}
+
+// GetTeamPreferences gets the preferences of a team. It returns nil if the
+// team does not exist.
+func (c *Client) GetTeamPreferences(ctx context.Context, teamID int64) (*TeamPreferences, error) {
+	resp, err := c.doRequest(ctx, http.MethodGet, fmt.Sprintf("/api/teams/%d/preferences", teamID), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get team preferences: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil // Team doesn't exist
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, newAPIError(resp.StatusCode, body)
+	}
+
+	var prefs TeamPreferences
+	if err := json.Unmarshal(body, &prefs); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return &prefs, nil
+}
+
+// UpdateTeamPreferences updates the preferences of a team. Omitted fields are
+// reset to the Grafana default.
+func (c *Client) UpdateTeamPreferences(ctx context.Context, teamID int64, prefs TeamPreferences) error {
+	resp, err := c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/api/teams/%d/preferences", teamID), prefs)
+	if err != nil {
+		return fmt.Errorf("failed to update team preferences: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return newAPIError(resp.StatusCode, body)
 	}
 
 	return nil

@@ -1,0 +1,364 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+  name: teams.oss.gf.m.crossplane.io
+spec:
+  group: oss.gf.m.crossplane.io
+  names:
+    categories:
+    - crossplane
+    - managed
+    - gf
+    kind: Team
+    listKind: TeamList
+    plural: teams
+    singular: team
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.conditions[?(@.type=='Synced')].status
+      name: SYNCED
+      type: string
+    - jsonPath: .status.conditions[?(@.type=='Ready')].status
+      name: READY
+      type: string
+    - jsonPath: .status.atProvider.name
+      name: TEAM
+      type: string
+    - jsonPath: .status.atProvider.memberCount
+      name: MEMBERS
+      type: integer
+    - jsonPath: .metadata.annotations.crossplane\.io/external-name
+      name: EXTERNAL-NAME
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Team is the Schema for the Team API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: TeamSpec defines the desired state of a Team.
+            properties:
+              forProvider:
+                description: TeamParameters are the configurable fields of a Team.
+                properties:
+                  admins:
+                    description: |-
+                      Admins is the list of email addresses of users who should be admins of
+                      the team. Users must already exist in Grafana.
+
+                      Grafana's team member API does not report which members are admins, so a
+                      membership change made outside Crossplane is only detected when the set
+                      of member email addresses changes.
+                    items:
+                      type: string
+                    type: array
+                  email:
+                    description: |-
+                      Email is the team email address, used for notifications such as team
+                      invitations. Grafana accepts an empty string, so an omitted field is
+                      reconciled to "".
+                    type: string
+                  members:
+                    description: |-
+                      Members is the list of email addresses of users who should be regular
+                      members of the team. Users must already exist in Grafana.
+
+                      Membership is only managed when this field or Admins is set. When either
+                      is set the whole membership set is authoritative: users not listed in
+                      either field are removed from the team. Leave both unset to manage
+                      membership exclusively with TeamMember resources.
+                    items:
+                      type: string
+                    type: array
+                  name:
+                    description: Name is the name of the team. It must be unique within
+                      the organization.
+                    type: string
+                  orgId:
+                    description: |-
+                      OrgID is the Organization ID. If not set, the Org ID defined in the
+                      provider config will be used.
+                    format: int64
+                    type: integer
+                  orgRef:
+                    description: OrgRef is a reference to an Organization to populate
+                      orgId.
+                    properties:
+                      name:
+                        description: Name of the referenced object.
+                        type: string
+                      policy:
+                        description: Policies for referencing.
+                        properties:
+                          resolution:
+                            default: Required
+                            description: |-
+                              Resolution specifies whether resolution of this reference is required.
+                              The default is 'Required', which means the reconcile will fail if the
+                              reference cannot be resolved. 'Optional' means this reference will be
+                              a no-op if it cannot be resolved.
+                            enum:
+                            - Required
+                            - Optional
+                            type: string
+                          resolve:
+                            description: |-
+                              Resolve specifies when this reference should be resolved. The default
+                              is 'IfNotPresent', which will attempt to resolve the reference only when
+                              the corresponding field is not present. Use 'Always' to resolve the
+                              reference on every reconcile.
+                            enum:
+                            - Always
+                            - IfNotPresent
+                            type: string
+                        type: object
+                    required:
+                    - name
+                    type: object
+                  orgSelector:
+                    description: OrgSelector selects an Organization to populate orgId.
+                    properties:
+                      matchControllerRef:
+                        description: |-
+                          MatchControllerRef ensures an object with the same controller reference
+                          as the selecting object is selected.
+                        type: boolean
+                      matchLabels:
+                        additionalProperties:
+                          type: string
+                        description: MatchLabels ensures an object with matching labels
+                          is selected.
+                        type: object
+                      policy:
+                        description: Policies for selection.
+                        properties:
+                          resolution:
+                            default: Required
+                            description: |-
+                              Resolution specifies whether resolution of this reference is required.
+                              The default is 'Required', which means the reconcile will fail if the
+                              reference cannot be resolved. 'Optional' means this reference will be
+                              a no-op if it cannot be resolved.
+                            enum:
+                            - Required
+                            - Optional
+                            type: string
+                          resolve:
+                            description: |-
+                              Resolve specifies when this reference should be resolved. The default
+                              is 'IfNotPresent', which will attempt to resolve the reference only when
+                              the corresponding field is not present. Use 'Always' to resolve the
+                              reference on every reconcile.
+                            enum:
+                            - Always
+                            - IfNotPresent
+                            type: string
+                        type: object
+                    type: object
+                required:
+                - name
+                type: object
+              managementPolicies:
+                default:
+                - '*'
+                description: |-
+                  THIS IS A BETA FIELD. It is on by default but can be opted out
+                  through a Crossplane feature flag.
+                  ManagementPolicies specify the array of actions Crossplane is allowed to
+                  take on the managed and external resources.
+                  See the design doc for more information: https://github.com/crossplane/crossplane/blob/499895a25d1a1a0ba1604944ef98ac7a1a71f197/design/design-doc-observe-only-resources.md?plain=1#L223
+                  and this one: https://github.com/crossplane/crossplane/blob/444267e84783136daa93568b364a5f01228cacbe/design/one-pager-ignore-changes.md
+                items:
+                  description: |-
+                    A ManagementAction represents an action that the Crossplane controllers
+                    can take on an external resource.
+                  enum:
+                  - Observe
+                  - Create
+                  - Update
+                  - Delete
+                  - LateInitialize
+                  - '*'
+                  type: string
+                type: array
+              providerConfigRef:
+                default:
+                  kind: ClusterProviderConfig
+                  name: default
+                description: |-
+                  ProviderConfigReference specifies how the provider that will be used to
+                  create, observe, update, and delete this managed resource should be
+                  configured.
+                properties:
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                required:
+                - kind
+                - name
+                type: object
+              writeConnectionSecretToRef:
+                description: |-
+                  WriteConnectionSecretToReference specifies the namespace and name of a
+                  Secret to which any connection details for this managed resource should
+                  be written. Connection details frequently include the endpoint, username,
+                  and password required to connect to the managed resource.
+                properties:
+                  name:
+                    description: Name of the secret.
+                    type: string
+                required:
+                - name
+                type: object
+            required:
+            - forProvider
+            type: object
+          status:
+            description: TeamStatus represents the observed state of a Team.
+            properties:
+              atProvider:
+                description: TeamObservation are the observable fields of a Team.
+                properties:
+                  email:
+                    description: Email is the team email address.
+                    type: string
+                  id:
+                    description: ID is the numeric ID of the team in Grafana.
+                    format: int64
+                    type: integer
+                  memberCount:
+                    description: MemberCount is the number of users in the team.
+                    format: int64
+                    type: integer
+                  members:
+                    description: Members are the users currently in the team.
+                    items:
+                      description: |-
+                        TeamMemberObservation is the observed state of a single team member. It is
+                        shared by TeamMember and by the member list reported on a Team.
+                      properties:
+                        email:
+                          description: Email is the email address of the user.
+                          type: string
+                        id:
+                          description: |-
+                            ID is the unique identifier of the membership, in the format
+                            <orgId>:<teamId>:<userId>.
+                          type: string
+                        login:
+                          description: Login is the login name of the user.
+                          type: string
+                        orgId:
+                          description: OrgID is the Organization ID.
+                          format: int64
+                          type: integer
+                        teamId:
+                          description: TeamID is the numeric ID of the team the user
+                            belongs to.
+                          format: int64
+                          type: integer
+                        userId:
+                          description: UserID is the numeric ID of the user.
+                          format: int64
+                          type: integer
+                      type: object
+                    type: array
+                  name:
+                    description: Name is the name of the team.
+                    type: string
+                  orgId:
+                    description: OrgID is the Organization ID the team belongs to.
+                    format: int64
+                    type: integer
+                  uid:
+                    description: UID is the UID of the team in Grafana.
+                    type: string
+                type: object
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        LastTransitionTime is the last time this condition transitioned from one
+                        status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        A Message containing details about this condition's last transition from
+                        one status to another, if any.
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        ObservedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      type: integer
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: |-
+                        Type of this condition. At most one of each condition type may apply to
+                        a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              observedGeneration:
+                description: |-
+                  ObservedGeneration is the latest metadata.generation
+                  which resulted in either a ready state, or stalled due to error
+                  it can not recover from without human intervention.
+                format: int64
+                type: integer
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

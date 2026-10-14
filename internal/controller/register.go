@@ -31,6 +31,9 @@ import (
 	"github.com/crossplane/provider-gf/internal/controller/notificationpolicy"
 	"github.com/crossplane/provider-gf/internal/controller/organization"
 	"github.com/crossplane/provider-gf/internal/controller/rulegroup"
+	"github.com/crossplane/provider-gf/internal/controller/team"
+	"github.com/crossplane/provider-gf/internal/controller/teammember"
+	"github.com/crossplane/provider-gf/internal/controller/teampreference"
 )
 
 // Setup creates all Grafana controllers and adds them to the supplied manager.
@@ -47,6 +50,9 @@ func Setup(mgr ctrl.Manager, o controller.Options) error {
 		notificationpolicy.Setup,
 		organization.Setup,
 		rulegroup.Setup,
+		team.Setup,
+		teammember.Setup,
+		teampreference.Setup,
 	} {
 		if err := setup(mgr, o); err != nil {
 			return err

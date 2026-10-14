@@ -1,0 +1,53 @@
+# Team UI preferences. Grafana replaces the whole preference object on update,
+# so any field you omit is reset to the Grafana default.
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamPreference
+metadata:
+  name: platform-team-preferences
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    teamRef:
+      name: platform-team
+    theme: dark
+    timezone: utc
+
+---
+# Include a home dashboard for the team.
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamPreference
+metadata:
+  name: security-team-preferences
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    teamSelector:
+      matchLabels:
+        grafana.example.com/team: security
+    theme: light
+    timezone: browser
+    homeDashboardUid: "security-overview"
+
+---
+# Clear the home dashboard (an empty string means "no home dashboard").
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamPreference
+metadata:
+  name: platform-team-default-preferences
+  namespace: monitoring
+spec:
+  providerConfigRef:
+    name: grafana-config
+    kind: ProviderConfig
+  forProvider:
+    teamRef:
+      name: platform-team
+    theme: ""
+    timezone: ""
+    homeDashboardUid: ""

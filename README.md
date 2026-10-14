@@ -11,6 +11,9 @@ This provider is built for **Crossplane v2** and uses namespaced resources only.
 - **DashboardPermission** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage complete permission sets for dashboards (per user/role/team with View/Edit/Admin levels)
 - **Folder** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana folders with hierarchical structure support
 - **LibraryPanel** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana library panels for reusable panel templates
+- **Team** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana teams, optionally owning their membership
+- **TeamMember** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage a single user's membership of a team
+- **TeamPreference** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage a team's theme, timezone and home dashboard
 - **Config** (`oss.gf.m.crossplane.io/v1alpha1`) - Manage Grafana provider configuration (organization ID, default folder, timezone, theme)
 
 ## Installation
@@ -257,6 +260,81 @@ spec:
   overwrite: true
 ```
 
+### Creating a Team
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: Team
+metadata:
+  name: platform-team
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    name: "Platform"
+    email: "platform@example.com"
+    # Optional. Users must already exist in Grafana.
+    admins:
+      - platform-lead@example.com
+    members:
+      - sre1@example.com
+      - sre2@example.com
+    orgRef:
+      name: default-org
+```
+
+### Managing Team Membership
+
+A `Team` only owns its membership when `members` or `admins` is set. When
+either is set, the whole membership set is authoritative and anyone not listed
+is removed from the team. Leave both unset to manage membership with
+standalone `TeamMember` resources instead - don't set both, or the two
+resources will fight over the same membership.
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamMember
+metadata:
+  name: platform-sre-oncall
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    teamRef:
+      name: platform-team
+    # userId is preferred over loginOrEmail because it is stable.
+    loginOrEmail: sre-oncall@example.com
+```
+
+`loginOrEmail` is matched case-insensitively against the login and email of the
+users in the resource's organization. Grafana refuses to add a user to a team
+unless they already belong to the organization, so the user must exist there.
+
+### Configuring Team Preferences
+
+```yaml
+apiVersion: oss.gf.m.crossplane.io/v1alpha1
+kind: TeamPreference
+metadata:
+  name: platform-team-preferences
+  namespace: default
+spec:
+  providerConfigRef:
+    name: grafana-basic-auth
+  forProvider:
+    teamRef:
+      name: platform-team
+    theme: dark
+    timezone: utc
+    homeDashboardUid: "platform-overview"
+```
+
+Grafana replaces the whole preference object on update, so any field you omit
+is reset to the Grafana default. Use `""` to explicitly select the default
+(e.g. no home dashboard).
+
 ### Config Resource Example
 
 ```yaml
@@ -294,6 +372,26 @@ make run
 ```shell
 make dev
 ```
+
+### Testing Against a Live Grafana
+
+Most behaviour only shows up against a real Grafana — how it handles a team
+that is renamed in the UI, a member added out of band, a preference object it
+returns as `{}` rather than zero values. The live tests drive the real
+controllers through that.
+
+They are skipped by `make test` and need a URL and token:
+
+```shell
+make test-live \
+  GRAFANA_URL=https://grafana.example.com \
+  GRAFANA_TOKEN=glsa_... \
+  GRAFANA_ORG_ID=1
+```
+
+Point these at a throwaway instance or an org you don't mind mutating: the
+tests create and delete teams, and add and remove real users from them. Every
+team they create is deleted afterwards, including when a test fails.
 
 ## License
 
