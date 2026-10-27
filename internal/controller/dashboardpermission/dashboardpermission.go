@@ -18,6 +18,7 @@ package dashboardpermission
 
 import (
 	"context"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -71,6 +72,13 @@ func parseExternalName(externalName string) (int64, string, error) { //nolint:un
 	return orgID, parts[1], nil
 }
 
+// dashboardAPIVersionPattern matches Grafana dashboard.grafana.app API versions,
+// both pre-release (v0alpha1, v1beta1, v2alpha1, v2beta1, ...) and stable/GA
+// versions (v1, v2, ...) now that the K8s-style dashboard API has graduated
+// some versions out of alpha/beta. Kept in sync with the identical pattern in
+// the dashboard controller package.
+var dashboardAPIVersionPattern = regexp.MustCompile(`^v[0-9]+(?:(?:alpha|beta)[0-9]+)?$`)
+
 // ExtractDashboardUID extracts the dashboard UID from a Dashboard resource's external name.
 // Supports both V1 and V2 external name formats:
 //   - V1: <orgId>:<uid> → returns <uid>
@@ -87,12 +95,10 @@ func ExtractDashboardUID() reference.ExtractValueFn {
 		}
 
 		// Check if V2 format: <orgId>:<apiVersion>:<name>
-		// V2 apiVersions contain "alpha" or "beta" (e.g., v1beta1, v2beta1)
 		parts := strings.SplitN(externalName, ":", 3)
 		if len(parts) == 3 && parts[1] != "" && parts[2] != "" {
 			// Check if second part looks like a Grafana API version
-			if strings.HasPrefix(parts[1], "v") &&
-				(strings.Contains(parts[1], "alpha") || strings.Contains(parts[1], "beta")) {
+			if dashboardAPIVersionPattern.MatchString(parts[1]) {
 				// V2 format - return the name (third part)
 				return parts[2]
 			}
